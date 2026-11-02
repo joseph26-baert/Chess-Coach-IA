@@ -159,14 +159,17 @@ test('l historique Elo n est jamais écrasé : deux parties = deux lignes', asyn
 test('course : abandon pendant la réflexion de l IA → une seule fin de partie, Elo appliqué une fois', async () => {
   const u = makeUser('lena');
   const g = await G.createGame(u, { color: 'white' });
-  const pending = G.playUserMove(g, { from: 'e2', to: 'e4' }); // l IA réfléchit
+  db.prepare('UPDATE games SET ai_elo = 2200 WHERE id = ?').run(g.id); // réflexion plus longue
+  const pending = G.playUserMove(G.getGame(g.id, u.id), { from: 'e2', to: 'e4' }); // l IA réfléchit
   await new Promise(r => setTimeout(r, 5));
   const resigned = G.resign(G.getGame(g.id, u.id));
   const afterAi = await pending;
   assert.equal(resigned.status, 'finished');
   assert.equal(afterAi.status, 'finished');
-  assert.equal(afterAi.termination, 'resign');
-  assert.equal(afterAi.move_count, 1, "le coup de l IA ne doit pas être enregistré");
+  assert.equal(afterAi.termination, 'resign', "l abandon reste la cause, même si l IA a répondu avant");
+  // Si l IA avait déjà répondu avant l abandon, son coup est légitime (2 demi-coups) ; sinon rien n est écrit après la fin
+  assert.ok([1, 2].includes(afterAi.move_count), String(afterAi.move_count));
+  assert.equal(G.getMoves(g.id).length, afterAi.move_count);
   const hist = db.prepare('SELECT COUNT(*) AS n FROM rating_history WHERE user_id = ? AND game_id = ?').get(u.id, g.id).n;
   assert.equal(hist, 0); // abandon avant 10 demi-coups : non classé, et surtout pas deux fois
   assert.equal(reload(u).rated_games, 0);

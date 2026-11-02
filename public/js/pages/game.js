@@ -21,7 +21,7 @@ export async function render(main, [id]) {
     <div class="page-head">
       <div>
         <h1>${g.status === 'finished' ? scoreLabel(g.user_score) : 'Partie en cours'} <span class="badge">${g.user_color === 'white' ? 'Blancs' : 'Noirs'}</span></h1>
-        <p>${formatDate(g.started_at, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · contre l'IA ${g.ai_elo} Elo · ${TIME_CONTROL_LABELS[g.time_control]}${g.termination ? ` · ${TERMINATIONS[g.termination]}` : ''}</p>
+        <p>${formatDate(g.started_at, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · contre l'IA ${g.ai_elo} Elo (${g.ai_persona}) · ${TIME_CONTROL_LABELS[g.time_control]}${g.termination ? ` · ${TERMINATIONS[g.termination]}` : ''}</p>
       </div>
       <div style="display:flex;gap:8px">
         ${g.status === 'ongoing' ? html`<a class="btn btn-primary" href="#/jouer">Reprendre</a>` : ''}

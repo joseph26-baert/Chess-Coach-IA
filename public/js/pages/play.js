@@ -84,7 +84,7 @@ function renderGame(main, g) {
       <div class="play-board-col">
         <div class="player-bar">
           <span class="avatar small">IA</span>
-          <span class="player-name">IA · ${g.ai_elo} Elo</span>
+          <span class="player-name">IA · ${g.ai_elo} Elo <span class="setup-hint">· ${g.ai_persona}</span></span>
           <span class="player-clock" id="clock-ai">${g.time_control === 'none' ? '' : '∞'}</span>
         </div>
         <div class="board-wrap"><div id="board"></div></div>

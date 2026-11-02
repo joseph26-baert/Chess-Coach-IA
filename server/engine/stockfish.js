@@ -22,7 +22,8 @@ class Engine {
   }
 
   start() {
-    this.proc = spawn(process.execPath, [ENGINE_JS], { stdio: ['pipe', 'pipe', 'ignore'] });
+    this.proc = spawn(process.execPath, [ENGINE_JS], { stdio: ['pipe', 'pipe', 'pipe'] });
+    this.proc.stderr.on('data', d => console.error('[stockfish]', String(d).trim().slice(0, 300)));
     this.proc.stdout.setEncoding('utf8');
     this.proc.stdout.on('data', chunk => {
       this.buffer += chunk;
@@ -127,12 +128,19 @@ export async function withEngine(fn) {
 
 // Analyse d'une position : renvoie les `multipv` meilleurs coups avec leur
 // évaluation (centipions du point de vue du camp au trait, ou mate N).
-export async function analyse(fen, { depth = 12, multipv = 1, moves = [] } = {}) {
+// `fen` peut valoir 'startpos' ; `moves` = coups UCI joués depuis cette position.
+// `movetime` (ms) borne le temps de recherche en plus de la profondeur.
+export async function analyse(fen, { depth = 12, multipv = 1, moves = [], movetime = null } = {}) {
   return withEngine(async (engine) => {
+    // Table de hachage vidée : l'analyse ne doit pas « hériter » d'une recherche
+    // précédente (autre partie, autre niveau), sinon la force dépend du contexte.
+    await engine.send('ucinewgame');
+    await engine.send('isready', l => l === 'readyok', 10_000);
     await engine.send(`setoption name MultiPV value ${multipv}`);
-    const pos = `position fen ${fen}${moves.length ? ' moves ' + moves.join(' ') : ''}`;
-    await engine.send(pos);
-    const lines = await engine.send(`go depth ${depth}`, l => l.startsWith('bestmove'));
+    const base = fen === 'startpos' ? 'position startpos' : `position fen ${fen}`;
+    await engine.send(`${base}${moves?.length ? ' moves ' + moves.join(' ') : ''}`);
+    const go = `go depth ${depth}${movetime ? ` movetime ${movetime}` : ''}`;
+    const lines = await engine.send(go, l => l.startsWith('bestmove'));
     const best = lines.find(l => l.startsWith('bestmove'))?.split(' ')[1] || null;
 
     // On garde, pour chaque ligne multipv, la dernière info à la plus grande profondeur atteinte

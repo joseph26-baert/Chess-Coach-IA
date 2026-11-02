@@ -2,7 +2,7 @@
 // Le serveur est la seule source de vérité : chaque coup est validé ici.
 import { Chess } from 'chess.js';
 import { db } from '../db.js';
-import { chooseMove, AI_MIN_ELO, AI_MAX_ELO } from '../engine/ai.js';
+import { chooseMove, newPersona, validPersona, AI_MIN_ELO, AI_MAX_ELO } from '../engine/ai.js';
 import { computeNewElo, isRatable, isProvisional } from './elo.js';
 
 export const TIME_CONTROLS = {
@@ -44,6 +44,7 @@ export function serializeGame(game, moves = getMoves(game.id)) {
     user_score: game.user_score,
     ai_elo: game.ai_elo,
     ai_offset: game.ai_offset,
+    ai_persona: personaLabel(personaOf(game)),
     time_control: game.time_control,
     user_time_ms: liveUserTime(game),
     fen: game.fen,
@@ -86,10 +87,11 @@ export async function createGame(user, { color, ai_offset = 'equal', time_contro
   const chess = new Chess();
   const now = new Date().toISOString();
 
-  const info = db.prepare(`INSERT INTO games (user_id, user_color, ai_elo, ai_offset, time_control, user_time_ms, user_turn_since,
+  const persona = JSON.stringify(newPersona());
+  const info = db.prepare(`INSERT INTO games (user_id, user_color, ai_elo, ai_offset, ai_profile, time_control, user_time_ms, user_turn_since,
                                               elo_before, fen, pgn, started_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)`)
-    .run(user.id, userColor, aiElo, ai_offset, time_control, tc ? tc.base : null,
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)`)
+    .run(user.id, userColor, aiElo, ai_offset, persona, time_control, tc ? tc.base : null,
          userColor === 'white' ? now : null, user.elo, chess.fen(), now);
   let game = getGame(info.lastInsertRowid, user.id);
 
@@ -123,12 +125,34 @@ function terminationOf(chess) {
   return null;
 }
 
+// Libellé lisible de la personnalité de l'IA pour cette partie
+export function personaLabel(p) {
+  const traits = [];
+  if (p.aggression >= 1.12) traits.push('offensive'); else if (p.aggression <= 0.88) traits.push('prudente');
+  if (p.blunderMul >= 1.25) traits.push('étourdie'); else if (p.blunderMul <= 0.75) traits.push('solide');
+  if (p.temperatureMul >= 1.2) traits.push('imprévisible'); else if (p.temperatureMul <= 0.8) traits.push('posée');
+  return traits.length ? traits.join(', ') : 'équilibrée';
+}
+
+// Personnalité de la partie ; une valeur absente ou invalide (anciennes parties) est
+// tirée une fois puis persistée, pour rester stable sur toute la partie.
+function personaOf(game) {
+  let p = null;
+  try { p = validPersona(JSON.parse(game.ai_profile)); } catch { /* 'human' ou JSON invalide */ }
+  if (p) return p;
+  p = newPersona();
+  db.prepare('UPDATE games SET ai_profile = ? WHERE id = ?').run(JSON.stringify(p), game.id);
+  game.ai_profile = JSON.stringify(p);
+  return p;
+}
+
 // Fait jouer l'IA. Pendant sa réflexion, la partie a pu être terminée (abandon,
 // perte au temps) : on relit la partie au retour et on n'écrit rien si elle est close.
 async function playAiMove(game, chess) {
   const t0 = Date.now();
   const expectedPly = chess.history().length;
-  const choice = await chooseMove(chess.fen(), game.ai_elo);
+  const history = getMoves(game.id).map(m => m.uci);
+  const choice = await chooseMove(chess.fen(), game.ai_elo, { persona: personaOf(game), ply: expectedPly, history });
   if (!choice) throw new Error("L'IA n'a trouvé aucun coup.");
 
   const fresh = getGame(game.id, game.user_id);

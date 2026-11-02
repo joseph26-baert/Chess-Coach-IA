@@ -57,11 +57,32 @@ data/               base SQLite et secret de session (non versionnés)
 - **Frontend sans framework** : modules ES natifs, aucune étape de compilation ;
   échiquier `cm-chessboard`, graphiques `Chart.js`.
 
+## Calibration de l'IA
+
+`node scripts/calibrate.mjs <eloA> <eloB> [parties]` fait jouer deux niveaux l'un contre l'autre.
+Objectif : à 200 Elo d'écart, le plus faible marque environ 24 %. Dernière calibration (2 nov. 2026) :
+
+| Palier      | Parties | Score du plus faible |
+|-------------|---------|----------------------|
+| 600 / 800   | 32      | 22 %                 |
+| 800 / 1000  | 32      | 25 %                 |
+| 1200 / 1400 | 48      | 20 %                 |
+| 1600 / 1800 | 24      | 25 %                 |
+| 1400 / 1600 | 24      | 19 %                 |
+| 1800 / 2000 | 24      | 29 %                 |
+
+Garde-fous vérifiés par `node scripts/endgame-check.mjs` : l'IA mate avec dame ou tour à tous les niveaux,
+reprend toujours une pièce qui vient de prendre, évite la répétition en position gagnante.
+
+Leviers (dans `server/engine/ai.js`, `paramsForElo`) : profondeur fractionnaire (3 → 6,2),
+température du softmax (240 → 60 cp), taux de gaffes plausibles (17 % → 2,5 %), mats en 1 et
+prises gratuites manqués. La profondeur est un levier très brutal : elle reste à 3 jusqu'à 1000 Elo.
+
 ## Avancement
 
 - [x] Phase 1a — comptes, sessions, profil, paramètres, coquille de l'application
 - [x] Phase 1b — échiquier, parties contre l'IA, pendule, sauvegarde, Elo, historique, replay
-- [ ] Phase 2 — IA adaptative « humaine »
+- [x] Phase 2 — IA adaptative « humaine » (erreurs plausibles, personnalité, ouverture, calibration)
 - [ ] Phase 3 — analyse des parties
 - [ ] Phase 4 — entraînement et détection des faiblesses
 - [ ] Phase 5 — graphiques, statistiques, programme personnalisé
