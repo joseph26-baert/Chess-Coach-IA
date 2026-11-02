@@ -4,7 +4,7 @@
    ================================================================ */
 
 :root {
-  --font-display: "Newsreader", Georgia, serif;
+  --font-display: "Newsreader Variable", "Newsreader", Georgia, serif;
   --font-ui: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
 
   --ink: #16161D;
