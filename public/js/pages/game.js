@@ -208,7 +208,7 @@ export async function render(main, [id]) {
     chart?.destroy();
     chart = new Chart(main.querySelector('#eval-chart'), {
       type: 'line',
-      data: { labels: s.curve.map((_, i) => i), datasets: [{ data, borderColor: css.getPropertyValue('--amber').trim(), borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: { target: 'origin', above: 'rgba(237,232,220,.35)', below: 'rgba(30,37,44,.65)' }, tension: 0.2 }] },
+      data: { labels: s.curve.map((_, i) => i), datasets: [{ data, borderColor: css.getPropertyValue('--amber').trim(), borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: { target: 'origin', above: 'rgba(213,211,220,.45)', below: 'rgba(119,116,155,.35)' }, tension: 0.2 }] },
       options: {
         animation: false, responsive: true, maintainAspectRatio: false,
         scales: { x: { display: false }, y: { min: -10, max: 10, ticks: { display: false }, grid: { color: 'rgba(128,128,128,.15)' } } },

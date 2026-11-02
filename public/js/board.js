@@ -41,7 +41,7 @@ export function createBoard(el, { fen = FEN.start, orientation = 'white', onMove
     position: fen,
     orientation: orientation === 'white' ? COLOR.white : COLOR.black,
     assetsUrl: '/vendor/cm-chessboard/assets/',
-    style: { cssClass: 'coach', showCoordinates: true, animationDuration: 220, pieces: { file: 'pieces/staunty.svg' } },
+    style: { cssClass: 'coach', showCoordinates: true, animationDuration: 220, pieces: { file: '/pieces/coach.svg' } },
     extensions: [{ class: Markers, props: { autoMarkers: null } }, { class: PromotionDialog }, { class: Arrows }],
   });
 

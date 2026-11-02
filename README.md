@@ -83,6 +83,6 @@ prises gratuites manqués. La profondeur est un levier très brutal : elle reste
 - [x] Phase 1a — comptes, sessions, profil, paramètres, coquille de l'application
 - [x] Phase 1b — échiquier, parties contre l'IA, pendule, sauvegarde, Elo, historique, replay
 - [x] Phase 2 — IA adaptative « humaine » (erreurs plausibles, personnalité, ouverture, calibration)
-- [ ] Phase 3 — analyse des parties
+- [x] Phase 3 — analyse des parties (Stockfish, rapport, replay annoté, motifs d'erreur)
 - [ ] Phase 4 — entraînement et détection des faiblesses
 - [ ] Phase 5 — graphiques, statistiques, programme personnalisé
