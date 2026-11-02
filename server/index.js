@@ -74,8 +74,8 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' })
 app.use('/vendor/cm-chessboard', express.static(path.join(ROOT, 'node_modules', 'cm-chessboard')));
 app.use('/vendor/chart.js', express.static(path.join(ROOT, 'node_modules', 'chart.js', 'dist')));
 app.use('/vendor/chess.js', express.static(path.join(ROOT, 'node_modules', 'chess.js', 'dist', 'esm')));
-app.use('/vendor/fonts/newsreader', express.static(path.join(ROOT, 'node_modules', '@fontsource-variable', 'newsreader'), { maxAge: '30d' }));
-app.use('/vendor/fonts/ibm-plex-sans', express.static(path.join(ROOT, 'node_modules', '@fontsource', 'ibm-plex-sans'), { maxAge: '30d' }));
+app.use('/vendor/fonts/montserrat', express.static(path.join(ROOT, 'node_modules', '@fontsource', 'montserrat'), { maxAge: '30d' }));
+app.use('/vendor/fonts/inter', express.static(path.join(ROOT, 'node_modules', '@fontsource', 'inter'), { maxAge: '30d' }));
 app.use(express.static(path.join(ROOT, 'public')));
 
 // Application monopage : toute route non-API renvoie index.html
