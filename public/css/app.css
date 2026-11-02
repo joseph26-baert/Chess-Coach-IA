@@ -215,3 +215,83 @@ p { margin: 0 0 1em; max-width: 62ch; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .settings-row:first-of-type { border-top: 0; }
 .settings-row .desc { color: var(--text-2); font-size: .9rem; }
+
+/* --- Échiquier (thème "coach" pour cm-chessboard) -------------------- */
+.cm-chessboard.coach .board .square.white { fill: #EDE8DC; }
+.cm-chessboard.coach .board .square.black { fill: #6A9B63; }
+.cm-chessboard.coach .coordinates { pointer-events: none; }
+.cm-chessboard.coach .coordinates .coordinate { font-size: 7px; font-family: var(--font-ui); fill: #1C2126; opacity: .55; }
+.cm-chessboard.coach .coordinates .coordinate.black { fill: #1C2126; }
+.cm-chessboard.coach .coordinates .coordinate.white { fill: #1C2126; }
+.cm-chessboard.coach.border-type-none .board .border { stroke: none; fill: none; }
+.cm-chessboard .marker-last-move { fill: #D4A65A; opacity: .5; }
+.cm-chessboard .marker-selected { fill: #D4A65A; opacity: .7; }
+.cm-chessboard .marker-check { fill: #D9705F; opacity: .75; }
+.cm-chessboard .marker-threat { stroke: #D9705F; stroke-width: 2.5px; opacity: .9; }
+.cm-chessboard .marker-dot { fill: #1C2126; opacity: .25; }
+.cm-chessboard .marker-bevel { stroke: #1C2126; opacity: .3; }
+
+.play { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+.play-board-col { max-width: 640px; }
+.board-wrap { width: 100%; border-radius: 6px; overflow: hidden; box-shadow: var(--shadow); }
+.player-bar { display: flex; align-items: center; gap: 10px; padding: 8px 2px; }
+.avatar.small { width: 28px; height: 28px; font-size: .8rem; }
+.player-name { font-weight: 600; }
+.player-clock { margin-left: auto; font-family: var(--font-display); font-size: 1.4rem; font-variant-numeric: tabular-nums; padding: 2px 10px; border-radius: var(--radius-sm); background: var(--surface); min-width: 0; }
+.player-clock.running { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--amber); }
+.player-clock.low { color: var(--loss); }
+.play-side .card { padding: 16px; }
+.status { font-weight: 600; margin-bottom: 12px; min-height: 1.4em; }
+.moves { max-height: 300px; overflow-y: auto; font-variant-numeric: tabular-nums; }
+.moves-tall { max-height: 420px; }
+.move-row { display: grid; grid-template-columns: 2.4em 1fr 1fr; gap: 4px; padding: 3px 0; }
+.move-row .n { color: var(--text-3); }
+.move-btn { background: transparent; border: 0; text-align: left; padding: 2px 6px; border-radius: 4px; cursor: pointer; }
+.move-btn:hover { background: var(--surface-2); }
+.move-btn.on { background: var(--green); color: #fff; }
+.play-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.check { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: .9rem; }
+.replay-controls { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; }
+.replay-pos { min-width: 9em; text-align: center; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+.setup { max-width: 720px; }
+.setup-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.setup-row:first-child { border-top: 0; padding-top: 0; }
+.setup-label { font-weight: 600; }
+.setup-hint { color: var(--text-3); font-size: .85rem; font-weight: 400; }
+.setup-actions { display: flex; align-items: center; gap: 16px; padding-top: 18px; flex-wrap: wrap; }
+.switch { flex-wrap: wrap; }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: grid; place-items: center; z-index: 40; padding: 16px; }
+.modal[hidden] { display: none; }
+.modal-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; width: min(440px, 100%); box-shadow: var(--shadow); text-align: center; }
+.end-title { font-family: var(--font-display); font-size: 2.2rem; line-height: 1.1; }
+.end-title.win { color: var(--win); } .end-title.loss { color: var(--loss); } .end-title.draw { color: var(--draw); }
+.end-sub { color: var(--text-2); margin: 6px 0 18px; }
+.elo-change { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.elo-change > div { display: flex; flex-direction: column; gap: 2px; font-family: var(--font-display); font-size: 1.4rem; }
+.elo-change .k { font-family: var(--font-ui); font-size: .8rem; color: var(--text-3); }
+.elo-change .elo { color: var(--amber); }
+.end-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+
+.hist-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 14px; align-items: center; padding: 12px 4px; border-top: 1px solid var(--line); text-decoration: none; }
+.hist-row:first-child { border-top: 0; }
+.hist-row:hover { background: var(--surface-2); }
+.hist-result { font-weight: 600; }
+.hist-result.win, .dot.win { color: var(--win); } .hist-result.loss, .dot.loss { color: var(--loss); } .hist-result.draw, .dot.draw { color: var(--draw); }
+.hist-sub { color: var(--text-3); font-size: .85rem; }
+.hist-elo { text-align: right; font-variant-numeric: tabular-nums; }
+.link-row { text-decoration: none; }
+.link-row:hover { background: var(--surface-2); margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: var(--radius-sm); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin-right: 8px; vertical-align: middle; }
+.table-card { padding: 4px 16px; }
+
+@media (max-width: 1000px) {
+  .play { grid-template-columns: 1fr; }
+  .play-board-col { max-width: none; }
+  .moves { max-height: 160px; }
+  .hist-row { grid-template-columns: 70px 1fr; }
+  .hist-elo { grid-column: 2; text-align: left; }
+}
+.player-clock:empty { display: none; }
+.hist-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

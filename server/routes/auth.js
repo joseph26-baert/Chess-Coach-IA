@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { db } from '../db.js';
 import { publicUser, requireAuth } from '../middleware.js';
+import { STARTING_ELO } from '../services/elo.js';
 
 const router = Router();
 
@@ -24,8 +25,19 @@ function recordAttempt(key) {
   attempts.set(key, a);
 }
 
+// Révoque toutes les sessions d'un utilisateur (après changement de mot de passe),
+// sauf éventuellement la session courante.
+function revokeSessions(userId, keepSid = null) {
+  const rows = db.prepare("SELECT sid FROM sessions WHERE json_extract(sess, '$.userId') = ?").all(userId);
+  const del = db.prepare('DELETE FROM sessions WHERE sid = ?');
+  for (const r of rows) if (r.sid !== keepSid) del.run(r.sid);
+}
+
 // --- Inscription --------------------------------------------------------
 router.post('/register', async (req, res) => {
+  const ipKey = `register|${req.ip}`;
+  if (tooManyAttempts(ipKey)) return res.status(429).json({ error: 'Trop de tentatives. Réessaie dans 15 minutes.' });
+  recordAttempt(ipKey);
   const email = String(req.body.email || '').trim();
   const username = String(req.body.username || '').trim();
   const password = String(req.body.password || '');
@@ -42,12 +54,12 @@ router.post('/register', async (req, res) => {
   }
 
   const hash = await bcrypt.hash(password, 12);
-  const info = db.prepare('INSERT INTO users (email, username, password_hash, last_login_at) VALUES (?, ?, ?, ?)')
-    .run(email, username, hash, new Date().toISOString());
+  const info = db.prepare('INSERT INTO users (email, username, password_hash, last_login_at, elo, peak_elo) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(email, username, hash, new Date().toISOString(), STARTING_ELO, STARTING_ELO);
 
   // Ligne d'initialisation de l'historique Elo (classement provisoire)
   db.prepare(`INSERT INTO rating_history (user_id, elo_before, elo_after, delta, provisional, reason)
-              VALUES (?, 1200, 1200, 0, 1, 'init')`).run(info.lastInsertRowid);
+              VALUES (?, ?, ?, 0, 1, 'init')`).run(info.lastInsertRowid, STARTING_ELO, STARTING_ELO);
 
   req.session.regenerate(err => {
     if (err) return res.status(500).json({ error: 'Erreur de session.' });
@@ -104,6 +116,7 @@ router.post('/change-password', requireAuth, async (req, res) => {
     return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
   }
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await bcrypt.hash(next, 12), req.user.id);
+  revokeSessions(req.user.id, req.session.id);
   res.json({ ok: true });
 });
 
@@ -111,6 +124,10 @@ router.post('/change-password', requireAuth, async (req, res) => {
 // Sans serveur SMTP configuré, le lien est journalisé côté serveur (et renvoyé
 // en mode développement) ; avec SMTP_URL défini, il sera envoyé par e-mail.
 router.post('/forgot', (req, res) => {
+  const ipKey = `forgot|${req.ip}`;
+  if (tooManyAttempts(ipKey)) return res.status(429).json({ error: 'Trop de demandes. Réessaie dans 15 minutes.' });
+  recordAttempt(ipKey);
+  db.prepare("DELETE FROM password_resets WHERE expires_at < ?").run(new Date().toISOString());
   const email = String(req.body.email || '').trim();
   const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email);
   // Réponse identique que l'adresse existe ou non (pas de fuite d'information)
@@ -122,7 +139,9 @@ router.post('/forgot', (req, res) => {
   const expires = new Date(Date.now() + 60 * 60_000).toISOString(); // 1 h
   db.prepare('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?, ?, ?)').run(user.id, tokenHash, expires);
 
-  const link = `${req.protocol}://${req.get('host')}/#/reset/${token}`;
+  // BASE_URL de configuration : on ne fait jamais confiance à l'en-tête Host pour un lien envoyé par e-mail
+  const base = (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+  const link = `${base}/#/reset/${token}`;
   console.log(`[auth] lien de réinitialisation pour ${user.email} : ${link}`);
   if (process.env.NODE_ENV !== 'production') reply.devLink = link;
   res.json(reply);
@@ -143,6 +162,7 @@ router.post('/reset', async (req, res) => {
   db.transaction(() => {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, row.user_id);
     db.prepare('UPDATE password_resets SET used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
+    revokeSessions(row.user_id);
   })();
   res.json({ ok: true });
 });

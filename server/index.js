@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { db, runMigrations } from './db.js';
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
+import gamesRoutes from './routes/games.js';
+import { shutdown as shutdownEngines } from './engine/stockfish.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -29,9 +31,10 @@ function sessionSecret() {
 }
 
 const app = express();
-app.set('trust proxy', 1);
+if (process.env.TRUST_PROXY) app.set('trust proxy', 1); // derrière un reverse proxy (hébergeur)
 app.disable('x-powered-by');
 app.use(express.json({ limit: '200kb' }));
+app.use((req, res, next) => { req.body ??= {}; next(); });
 
 // Sessions persistées en base (survivent aux redémarrages du serveur)
 const SqliteStore = SqliteStoreFactory(session);
@@ -61,6 +64,7 @@ app.use((req, res, next) => {
 // --- API ---------------------------------------------------------------
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/games', gamesRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 
@@ -79,4 +83,6 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erreur interne du serveur.' });
 });
 
-app.listen(PORT, () => console.log(`Chess Coach démarré sur http://localhost:${PORT}`));
+const server = app.listen(PORT, () => console.log(`Chess Coach IA démarré sur http://localhost:${PORT}`));
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { shutdownEngines(); server.close(() => process.exit(0)); });
+export default app;

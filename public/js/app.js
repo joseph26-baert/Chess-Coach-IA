@@ -28,12 +28,17 @@ const routes = [
   { path: /^\/mot-de-passe$/,   page: 'forgot',    auth: false },
   { path: /^\/reset\/(\w+)$/,   page: 'reset',     auth: false },
   { path: /^\/tableau-de-bord$/,page: 'dashboard', auth: true },
+  { path: /^\/jouer$/,          page: 'play',      auth: true },
+  { path: /^\/partie\/(\d+)$/,  page: 'game',      auth: true },
+  { path: /^\/historique$/,     page: 'history',   auth: true },
   { path: /^\/profil$/,         page: 'profile',   auth: true },
   { path: /^\/parametres$/,     page: 'settings',  auth: true },
 ];
 
 const NAV = [
-  { href: '#/tableau-de-bord', label: 'Tableau de bord', icon: 'grid' },
+  { href: '#/tableau-de-bord', label: 'Tableau de bord', short: 'Accueil', icon: 'grid' },
+  { href: '#/jouer',           label: 'Jouer',           icon: 'knight' },
+  { href: '#/historique',      label: 'Historique',      icon: 'list' },
   { href: '#/profil',          label: 'Profil',          icon: 'user' },
   { href: '#/parametres',      label: 'Paramètres',      icon: 'cog' },
 ];
@@ -43,6 +48,7 @@ const ICONS = {
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
   cog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   knight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 21h12M8 21v-2c0-2 1-3 2-4l-3-1c-1-.5-1.5-2-1-3l3-3c1-1 2-3 2-5l2 1c2 1 4 2 4 6 0 3-1 5-2 7v4"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 17l5-5-5-5M15 12H3M21 3v18"/></svg>',
 };
 
@@ -60,11 +66,11 @@ function renderNav() {
   const path = currentPath();
   const u = state.user;
 
-  const links = (items) => items.map(i => html`<a href="${i.href}" class="${'#' + path === i.href ? 'active' : ''}">${raw(ICONS[i.icon])}<span>${i.label}</span></a>`);
+  const links = (items, short = false) => items.map(i => html`<a href="${i.href}" class="${'#' + path === i.href ? 'active' : ''}">${raw(ICONS[i.icon])}<span>${short ? (i.short || i.label) : i.label}</span></a>`);
 
   if (!u) {
     sidebar.innerHTML = html`
-      <a class="brand" href="#/"><span class="brand-mark">♞</span>Chess Coach</a>
+      <a class="brand" href="#/"><span class="brand-mark">♞</span>Chess Coach IA</a>
       <div class="nav">
         <a href="#/connexion" class="${path === '/connexion' ? 'active' : ''}">${raw(ICONS.user)}<span>Connexion</span></a>
         <a href="#/inscription" class="${path === '/inscription' ? 'active' : ''}">${raw(ICONS.knight)}<span>Créer un compte</span></a>
@@ -77,7 +83,7 @@ function renderNav() {
   }
 
   sidebar.innerHTML = html`
-    <a class="brand" href="#/tableau-de-bord"><span class="brand-mark">♞</span>Chess Coach</a>
+    <a class="brand" href="#/tableau-de-bord"><span class="brand-mark">♞</span>Chess Coach IA</a>
     <div class="nav">${links(NAV)}</div>
     <div class="sidebar-foot">
       <a class="user-chip" href="#/profil">
@@ -86,7 +92,7 @@ function renderNav() {
       </a>
       <button class="btn btn-ghost btn-sm btn-block" id="logout-btn" style="margin-top:10px">${raw(ICONS.logout)} Se déconnecter</button>
     </div>`;
-  tabbar.innerHTML = html`${links(NAV)}`;
+  tabbar.innerHTML = html`${links(NAV, true)}`;
   document.getElementById('logout-btn').addEventListener('click', logout);
 }
 
