@@ -13,6 +13,9 @@ import profileRoutes from './routes/profile.js';
 import gamesRoutes from './routes/games.js';
 import { shutdown as shutdownEngines } from './engine/stockfish.js';
 import { recoverQueue } from './services/analysis.js';
+import trainingRoutes from './routes/training.js';
+import adminRoutes from './routes/admin.js';
+import { loadLibrary } from './services/training.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -20,6 +23,7 @@ const PORT = process.env.PORT || 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 runMigrations();
+loadLibrary();
 recoverQueue();
 
 // Secret de session : variable d'environnement, sinon généré et conservé dans data/
@@ -67,6 +71,8 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/games', gamesRoutes);
+app.use('/api/training', trainingRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 

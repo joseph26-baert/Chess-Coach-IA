@@ -3,9 +3,11 @@ import { api } from '../api.js';
 import { scoreLabel, TERMINATIONS } from '../chess-labels.js';
 
 export async function render(main) {
-  const [{ user, stats, elo }, { game: current }, { games: recent }] = await Promise.all([
-    api.get('/profile'), api.get('/games/current'), api.get('/games?limit=5'),
+  const [{ user, stats, elo }, { game: current }, { games: recent }, training] = await Promise.all([
+    api.get('/profile'), api.get('/games/current'), api.get('/games?limit=5'), api.get('/training/overview'),
   ]);
+  const weak = training.weaknesses.filter(w => w.score !== null && w.score < 40).sort((a, b) => a.score - b.score).slice(0, 2);
+  const strong = training.weaknesses.filter(w => w.score !== null && w.score > 70).sort((a, b) => b.score - a.score).slice(0, 2);
   const pct = (n) => stats.games ? Math.round(100 * n / stats.games) + ' %' : '—';
 
   main.innerHTML = html`
@@ -54,8 +56,12 @@ export async function render(main) {
         ${recent.length ? html`<div style="margin-top:10px"><a href="#/historique">Tout l'historique</a></div>` : ''}
       </div>
       <div class="card">
-        <h3>Entraînement</h3>
-        <p class="setup-hint">L'analyse des parties et les exercices personnalisés arrivent aux phases 3 et 4.</p>
+        <h3>Entraînement du jour</h3>
+        <div class="program-progress"><div class="progress"><div style="width:${Math.round(100 * training.program.done / training.program.total)}%"></div></div><span>${training.program.done} / ${training.program.total}</span></div>
+        ${weak.length ? html`<div class="tag-row">${weak.map(w => html`<span class="tag tag-bad">À travailler : ${w.label}</span>`)}</div>` : ''}
+        ${strong.length ? html`<div class="tag-row">${strong.map(w => html`<span class="tag tag-good">Point fort : ${w.label}</span>`)}</div>` : ''}
+        ${!weak.length && !strong.length ? html`<p class="setup-hint">${stats.games ? 'Votre profil se précise au fil des parties analysées.' : 'Jouez une première partie : son analyse nourrira votre programme.'}</p>` : ''}
+        <div style="margin-top:10px"><a class="btn btn-sm" href="#/exercice">${training.program.done ? 'Continuer les exercices' : 'Commencer les exercices'}</a> <a href="#/entrainement" style="margin-left:10px">Tout l'entraînement</a></div>
       </div>
     </div>`;
 }

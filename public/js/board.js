@@ -7,6 +7,7 @@ import { Arrows, ARROW_TYPE } from '/vendor/cm-chessboard/src/extensions/arrows/
 import { Chess } from '/vendor/chess.js/chess.js';
 
 export { Chess, FEN };
+if (typeof window !== 'undefined') window.__ChessCtor = Chess;
 
 // Types de marqueurs propres à l'application (références stables, voir README de l'extension)
 const LAST_MOVE = { class: 'marker-last-move', slice: 'markerSquare' };

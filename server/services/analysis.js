@@ -443,6 +443,12 @@ export async function processQueue() {
       if (!next) break;
       try {
         await runAnalysis(next.id);
+        try {
+          const { createPuzzlesFromGame, computeWeaknesses } = await import('./training.js');
+          const a = db.prepare('SELECT game_id, user_id FROM analyses WHERE id = ?').get(next.id);
+          await createPuzzlesFromGame(a.game_id);
+          computeWeaknesses(a.user_id);
+        } catch (e2) { console.error('[training] exercices personnels', e2); }
       } catch (err) {
         console.error('[analysis] échec', next.id, err);
         try { db.prepare("UPDATE analyses SET status = 'error', error_message = ?, finished_at = ? WHERE id = ?").run(String(err.message || err), new Date().toISOString(), next.id); }

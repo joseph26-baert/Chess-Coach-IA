@@ -22,6 +22,7 @@ Variables d'environnement (toutes optionnelles) :
 | `BASE_URL`       | Adresse publique du site (liens dans les e-mails) | `http://localhost:3000` |
 | `TRUST_PROXY`    | À définir (`1`) derrière un reverse proxy       | —                       |
 | `ENGINE_POOL`    | Nombre de processus Stockfish                   | `2`                     |
+| `ADMIN_EMAILS`   | Adresses (séparées par des virgules) ayant accès aux statistiques d'usage | — |
 
 ## Architecture
 

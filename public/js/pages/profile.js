@@ -2,7 +2,10 @@ import { html, formatDelta, formatDate, initials } from '../ui.js';
 import { api } from '../api.js';
 
 export async function render(main) {
-  const { user, stats, elo } = await api.get('/profile');
+  const [{ user, stats, elo }, overview] = await Promise.all([api.get('/profile'), api.get('/training/overview')]);
+  const known = overview.weaknesses.filter(w => w.score !== null);
+  const strengths = known.filter(w => w.score > 70).sort((a, b) => b.score - a.score);
+  const weaknesses = known.filter(w => w.score < 40).sort((a, b) => a.score - b.score);
 
   main.innerHTML = html`
     <div class="profile-head">
@@ -39,7 +42,13 @@ export async function render(main) {
       </div>
       <div class="card">
         <h3>Points forts et faiblesses</h3>
-        <div class="empty">Ils apparaîtront après l'analyse de vos premières parties.</div>
+        ${known.length ? html`
+          ${strengths.length ? html`<div class="tag-row">${strengths.map(w => html`<span class="tag tag-good">${w.label} ${w.score}</span>`)}</div>` : ''}
+          ${weaknesses.length ? html`<div class="tag-row">${weaknesses.map(w => html`<span class="tag tag-bad">${w.label} ${w.score}</span>`)}</div>` : ''}
+          ${!strengths.length && !weaknesses.length ? html`<p class="setup-hint">Profil équilibré : aucune catégorie sous 40 ni au-dessus de 70.</p>` : ''}
+          <div class="list-row"><span class="k">Exercices réalisés</span><span>${overview.totals.attempts} (${overview.totals.attempts ? Math.round(100 * overview.totals.solved / overview.totals.attempts) : 0} % réussis)</span></div>
+          <a href="#/entrainement">Voir le détail et s'entraîner</a>`
+        : html`<div class="empty">Ils apparaîtront après l'analyse de vos premières parties.</div>`}
       </div>
     </div>`;
 }

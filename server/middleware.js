@@ -6,7 +6,8 @@ export function publicUser(id) {
                                preferred_color, ai_offset, show_threats, theme
                         FROM users WHERE id = ?`).get(id);
   if (!u) return null;
-  return { ...u, provisional: u.rated_games < 5, show_threats: !!u.show_threats };
+  const admins = String(process.env.ADMIN_EMAILS || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+  return { ...u, provisional: u.rated_games < 5, show_threats: !!u.show_threats, is_admin: admins.includes(u.email.toLowerCase()) };
 }
 
 // Exige une session authentifiée et attache req.user

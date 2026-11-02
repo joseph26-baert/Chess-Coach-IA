@@ -31,6 +31,8 @@ const routes = [
   { path: /^\/jouer$/,          page: 'play',      auth: true },
   { path: /^\/partie\/(\d+)$/,  page: 'game',      auth: true },
   { path: /^\/historique$/,     page: 'history',   auth: true },
+  { path: /^\/entrainement$/,   page: 'training',  auth: true },
+  { path: /^\/exercice$/,       page: 'puzzle',    auth: true },
   { path: /^\/profil$/,         page: 'profile',   auth: true },
   { path: /^\/parametres$/,     page: 'settings',  auth: true },
 ];
@@ -38,6 +40,7 @@ const routes = [
 const NAV = [
   { href: '#/tableau-de-bord', label: 'Tableau de bord', short: 'Accueil', icon: 'grid' },
   { href: '#/jouer',           label: 'Jouer',           icon: 'knight' },
+  { href: '#/entrainement',    label: 'Entraînement',    short: 'Entraîner', icon: 'target' },
   { href: '#/historique',      label: 'Historique',      icon: 'list' },
   { href: '#/profil',          label: 'Profil',          icon: 'user' },
   { href: '#/parametres',      label: 'Paramètres',      icon: 'cog' },
@@ -48,6 +51,7 @@ const ICONS = {
   user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
   cog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   knight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 21h12M8 21v-2c0-2 1-3 2-4l-3-1c-1-.5-1.5-2-1-3l3-3c1-1 2-3 2-5l2 1c2 1 4 2 4 6 0 3-1 5-2 7v4"/></svg>',
+  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 17l5-5-5-5M15 12H3M21 3v18"/></svg>',
 };

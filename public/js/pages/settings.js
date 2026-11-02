@@ -66,6 +66,22 @@ export async function render(main) {
 
   main.querySelector('#settings-logout').addEventListener('click', logout);
 
+  if (u.is_admin) {
+    const card = document.createElement('div');
+    card.className = 'card settings-section';
+    card.style.marginTop = '16px';
+    card.innerHTML = html`<h3>Administration</h3><p class="setup-hint">Chiffres d'usage, votre compte exclu.</p><div id="admin-stats" class="grid grid-4"></div>`;
+    main.appendChild(card);
+    api.get('/admin/stats').then(s => {
+      const stat = (label, value, sub = '') => html`<div class="stat"><span class="label">${label}</span><span class="value">${value}</span>${sub ? html`<span class="sub">${sub}</span>` : ''}</div>`;
+      card.querySelector('#admin-stats').innerHTML = html`
+        ${stat('Utilisateurs', s.users, `${s.users_7d} nouveaux sur 7 j`)}
+        ${stat('Actifs', s.active_7d, `${s.active_30d} sur 30 jours`)}
+        ${stat('Parties jouées', s.games, `${s.games_7d} sur 7 jours`)}
+        ${stat('Exercices faits', s.puzzles, `${s.library} dans la bibliothèque`)}`;
+    }).catch(err => toast(err.message));
+  }
+
   // Interrupteurs : enregistrement immédiat
   main.querySelectorAll('.switch').forEach(sw => {
     sw.addEventListener('click', async (e) => {
