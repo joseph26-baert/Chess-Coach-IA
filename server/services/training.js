@@ -51,7 +51,7 @@ export async function createPuzzlesFromGame(gameId, { max = 3 } = {}) {
   if (!game) return [];
   const analysis = db.prepare('SELECT id FROM analyses WHERE game_id = ? AND status = ? ORDER BY id DESC LIMIT 1').get(gameId, 'done');
   if (!analysis) return [];
-  const rows = db.prepare('SELECT ply, loss_cp, label, motifs FROM move_evals WHERE analysis_id = ? AND by_user = 1 AND loss_cp >= 150 ORDER BY loss_cp DESC').all(analysis.id);
+  const rows = db.prepare('SELECT ply, loss_cp, label, motifs FROM move_evals WHERE analysis_id = ? AND by_user = 1 AND loss_cp >= 150 ORDER BY loss_cp DESC LIMIT 8').all(analysis.id);
   const moves = db.prepare('SELECT ply, fen_after FROM moves WHERE game_id = ? ORDER BY ply').all(gameId);
   const fenBefore = (ply) => (ply === 1 ? new Chess().fen() : moves[ply - 2].fen_after);
   const created = [];
@@ -129,7 +129,11 @@ export function computeWeaknesses(userId, { persist = true } = {}) {
     else if (pz !== null) score = 100 * pz;
     const s = score === null ? null : Math.round(Math.max(0, Math.min(100, score)));
     out[cat] = { category: cat, label: CATEGORIES_FR[cat], score: s, errorsPerGame: perGame === null ? null : Math.round(perGame * 10) / 10, puzzleRate: pz === null ? null : Math.round(pz * 100) };
-    if (persist && s !== null) insert.run(userId, cat, s, Math.round((errors[cat] || 0) * 10), pz);
+    if (persist && s !== null) {
+      const last = db.prepare('SELECT score, computed_at FROM weakness_scores WHERE user_id = ? AND category = ? ORDER BY id DESC LIMIT 1').get(userId, cat);
+      const stale = !last || last.score !== s || last.computed_at < new Date(Date.now() - 86400_000).toISOString();
+      if (stale) insert.run(userId, cat, s, Math.round((errors[cat] || 0) * 10), pz);
+    }
   }
   return out;
 }
@@ -174,22 +178,46 @@ export function pickPuzzle(userId, { theme = null, category = null, excludeIds =
   const weaknesses = latestWeaknesses(userId).reduce((m, w) => { m[w.category] = w; return m; }, {});
   const cat = category || (theme ? themeCategory(theme) : pickCategory(weaknesses));
   const themes = theme ? [theme] : themesOfCategory(cat);
+  if (!themes.length) return fallbackPuzzle(userId, ex, cat); // catégorie sans thème d'exercice (ex. ouvertures)
   const level = Math.round(themes.reduce((s, t) => s + themeRating(userId, t).rating, 0) / themes.length);
-  const recent = new Set(db.prepare("SELECT puzzle_id FROM puzzle_attempts WHERE user_id = ? AND created_at >= datetime('now', '-7 days')").all(userId).map(r => r.puzzle_id));
+  // Exclus : tentés dans les 7 jours, et tous ceux déjà planifiés (ils reviendront par la révision)
+  const recent = new Set([
+    ...db.prepare("SELECT puzzle_id FROM puzzle_attempts WHERE user_id = ? AND created_at >= datetime('now', '-7 days')").all(userId).map(r => r.puzzle_id),
+    ...db.prepare('SELECT puzzle_id FROM puzzle_schedule WHERE user_id = ?').all(userId).map(r => r.puzzle_id),
+  ]);
   const themeClause = themes.map(() => "themes LIKE ?").join(' OR ');
   const params = themes.map(t => `%"${t}"%`);
   // Exercices personnels d'abord
-  const own = db.prepare(`SELECT id, rating FROM puzzles WHERE user_id = ? AND (${themeClause}) ORDER BY created_at DESC LIMIT 50`).all(userId, ...params)
-    .filter(p => !ex.has(p.id) && !recent.has(p.id) && !db.prepare('SELECT 1 FROM puzzle_attempts WHERE user_id = ? AND puzzle_id = ?').get(userId, p.id));
+  const own = db.prepare(`SELECT p.id FROM puzzles p LEFT JOIN puzzle_attempts a ON a.puzzle_id = p.id AND a.user_id = p.user_id
+                          WHERE p.user_id = ? AND (${themeClause}) AND a.id IS NULL ORDER BY p.created_at DESC LIMIT 50`).all(userId, ...params)
+    .filter(p => !ex.has(p.id) && !recent.has(p.id));
   if (own.length) return { puzzle: getPuzzle(randomPick(own).id), reason: 'own', category: cat };
   for (const spread of [150, 300, 600, 2000]) {
     const rows = db.prepare(`SELECT id FROM puzzles WHERE source = 'library' AND (${themeClause}) AND rating BETWEEN ? AND ? ORDER BY RANDOM() LIMIT 40`)
       .all(...params, level - spread, level + spread).filter(p => !ex.has(p.id) && !recent.has(p.id));
     if (rows.length) return { puzzle: getPuzzle(randomPick(rows).id), reason: 'level', category: cat };
   }
-  // Rien dans ce thème : n'importe quel exercice au niveau
-  const any = db.prepare(`SELECT id FROM puzzles WHERE source = 'library' ORDER BY ABS(rating - ?) LIMIT 40`).all(level).filter(p => !ex.has(p.id) && !recent.has(p.id));
+  return fallbackPuzzle(userId, new Set([...ex, ...recent]), cat);
+}
+
+// N'importe quel exercice de la bibliothèque proche du niveau général du joueur
+function fallbackPuzzle(userId, excluded, cat) {
+  const user = db.prepare('SELECT elo FROM users WHERE id = ?').get(userId);
+  const any = db.prepare(`SELECT id FROM puzzles WHERE source = 'library' ORDER BY ABS(rating - ?) LIMIT 60`).all(user?.elo ?? 1000).filter(p => !excluded.has(p.id));
   return any.length ? { puzzle: getPuzzle(randomPick(any).id), reason: 'fallback', category: cat } : null;
+}
+
+// Prochain exercice du programme du jour : suit les créneaux dans l'ordre
+export function pickProgramPuzzle(userId, excludeIds = []) {
+  const program = dailyProgram(userId);
+  const slot = program.slots[program.done] || program.slots[program.slots.length - 1];
+  if (!slot) return pickPuzzle(userId, { excludeIds });
+  if (slot.label === 'Révision') {
+    const ex = new Set(excludeIds);
+    for (const id of dueReviews(userId, 20)) if (!ex.has(id)) return { puzzle: getPuzzle(id), reason: 'review', slot };
+  }
+  const picked = pickPuzzle(userId, { category: slot.category, excludeIds, includeDue: false });
+  return picked ? { ...picked, slot } : null;
 }
 
 export function getPuzzle(id) {
@@ -204,7 +232,7 @@ export function publicPuzzle(p, extra = {}) {
   return {
     id: p.id, fen: p.fen, turn: chess.turn() === 'w' ? 'white' : 'black', themes: p.themes,
     themeLabels: p.themes.map(t => THEMES[t]?.fr || t), rating: p.rating, source: p.source, game_id: p.game_id, ply: p.ply,
-    length: Math.ceil(p.solution.length / 2), mate_in: p.mate_in, ...extra,
+    length: Math.ceil(p.solution.length / 2), ...extra,
   };
 }
 
@@ -222,19 +250,25 @@ export function recordAttempt(userId, puzzleId, { result, hints = 0, time_ms = n
     .run(userId, puzzleId, result, hints, time_ms, before, after, theme);
 
   // Répétition espacée (SM-2 simplifié)
+  // Répétition espacée (SM-2 simplifié) : un exercice réussi du premier coup est maîtrisé et ne revient pas ;
+  // un échec le fait revenir le lendemain, puis 3, 7 et 21 jours après chaque réussite ; un indice ne fait pas progresser.
   const cur = db.prepare('SELECT * FROM puzzle_schedule WHERE user_id = ? AND puzzle_id = ?').get(userId, puzzleId);
   let reps = cur?.reps ?? 0, lapses = cur?.lapses ?? 0, interval, retired = 0;
   if (result === 'failed') { reps = 0; lapses++; interval = 1; }
   else if (result === 'solved-hint') { interval = 1; }
+  else if (!cur) { retired = 1; interval = 365; }
   else { reps++; if (reps > SRS_INTERVALS.length) { retired = 1; interval = 365; } else interval = SRS_INTERVALS[reps - 1]; }
-  const due = new Date(Date.now() + interval * 86400_000).toISOString();
+  // Échéance au début de journée (UTC) : un échec le soir est bien dû le lendemain matin
+  const due = new Date(Date.now() + interval * 86400_000); due.setUTCHours(0, 0, 0, 0);
+  const dueIso = due.toISOString();
   db.prepare(`INSERT INTO puzzle_schedule (user_id, puzzle_id, due_at, interval_days, reps, lapses, retired, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(user_id, puzzle_id) DO UPDATE SET due_at = excluded.due_at, interval_days = excluded.interval_days, reps = excluded.reps,
               lapses = excluded.lapses, retired = excluded.retired, updated_at = excluded.updated_at`)
-    .run(userId, puzzleId, due, interval, reps, lapses, retired, new Date().toISOString());
+    .run(userId, puzzleId, dueIso, interval, reps, lapses, retired, new Date().toISOString());
+  db.prepare('DELETE FROM puzzle_sessions WHERE user_id = ? AND puzzle_id = ?').run(userId, puzzleId);
 
   computeWeaknesses(userId);
-  return { theme, rating_before: before, rating_after: after, next_due: due, retired: !!retired };
+  return { theme, rating_before: before, rating_after: after, next_due: dueIso, retired: !!retired };
 }
 
 // ---------------------------------------------------------------------------
@@ -267,4 +301,33 @@ export function overview(userId) {
   const totals = db.prepare(`SELECT COUNT(*) AS n, SUM(CASE WHEN result != 'failed' THEN 1 ELSE 0 END) AS ok FROM puzzle_attempts WHERE user_id = ?`).get(userId);
   const own = db.prepare("SELECT COUNT(*) AS n FROM puzzles WHERE user_id = ?").get(userId).n;
   return { weaknesses, themes, program: dailyProgram(userId), totals: { attempts: totals.n || 0, solved: totals.ok || 0 }, ownPuzzles: own, due: dueReviews(userId, 50).length };
+}
+
+// ---------------------------------------------------------------------------
+// Session de résolution : l'état d'une tentative vit côté serveur
+// ---------------------------------------------------------------------------
+export function openSession(userId, puzzleId) {
+  db.prepare(`INSERT INTO puzzle_sessions (user_id, puzzle_id, progress, hints, solution_seen, started_at) VALUES (?, ?, 0, 0, 0, ?)
+              ON CONFLICT(user_id, puzzle_id) DO UPDATE SET progress = 0, hints = 0, solution_seen = 0, started_at = excluded.started_at`)
+    .run(userId, puzzleId, new Date().toISOString());
+}
+export function getSession(userId, puzzleId) {
+  return db.prepare('SELECT * FROM puzzle_sessions WHERE user_id = ? AND puzzle_id = ?').get(userId, puzzleId) || null;
+}
+export function sessionProgress(userId, puzzleId, progress) {
+  db.prepare('UPDATE puzzle_sessions SET progress = MAX(progress, ?) WHERE user_id = ? AND puzzle_id = ?').run(progress, userId, puzzleId);
+}
+export function sessionHint(userId, puzzleId) {
+  db.prepare('UPDATE puzzle_sessions SET hints = hints + 1 WHERE user_id = ? AND puzzle_id = ?').run(userId, puzzleId);
+}
+export function sessionSolution(userId, puzzleId) {
+  db.prepare('UPDATE puzzle_sessions SET solution_seen = 1 WHERE user_id = ? AND puzzle_id = ?').run(userId, puzzleId);
+}
+// Résultat déduit de la session (jamais du client)
+export function sessionResult(userId, puzzle) {
+  const sess = getSession(userId, puzzle.id);
+  if (!sess) return null;
+  const needed = Math.ceil(puzzle.solution.length / 2);
+  if (sess.solution_seen || sess.progress < needed) return { result: 'failed', hints: sess.hints, time_ms: Date.now() - new Date(sess.started_at).getTime() };
+  return { result: sess.hints > 0 ? 'solved-hint' : 'solved', hints: sess.hints, time_ms: Date.now() - new Date(sess.started_at).getTime() };
 }

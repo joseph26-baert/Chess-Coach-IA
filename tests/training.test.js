@@ -52,28 +52,59 @@ test('niveau par thème : part de l Elo du joueur, monte sur réussite, descend 
   assert.equal(T.themeRating(uid, 'fork').attempts, 2);
 });
 
-test('répétition espacée : échec → demain ; réussites → 1, 3, 7, 21 jours puis maîtrisé', () => {
+test('répétition espacée : réussite directe = maîtrisé ; après un échec → 1, 3, 7, 21 jours puis maîtrisé', () => {
   const uid = makeUser('bob');
-  const sched = () => db.prepare('SELECT * FROM puzzle_schedule WHERE user_id = ? AND puzzle_id = 1').get(uid);
+  const sched = (pid = 1) => db.prepare('SELECT * FROM puzzle_schedule WHERE user_id = ? AND puzzle_id = ?').get(uid, pid);
+  T.recordAttempt(uid, 3, { result: 'solved' });
+  assert.equal(sched(3).retired, 1, 'réussi du premier coup : ne revient pas');
   T.recordAttempt(uid, 1, { result: 'failed' });
   assert.equal(sched().interval_days, 1); assert.equal(sched().lapses, 1);
-  const expected = [1, 3, 7, 21];
-  for (const days of expected) {
+  assert.ok(sched().due_at.endsWith('T00:00:00.000Z'), 'échéance au début de journée');
+  for (const days of [1, 3, 7, 21]) {
     T.recordAttempt(uid, 1, { result: 'solved' });
     assert.equal(sched().interval_days, days);
     assert.equal(sched().retired, 0);
   }
   T.recordAttempt(uid, 1, { result: 'solved' });
   assert.equal(sched().retired, 1);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM puzzle_attempts WHERE user_id = ?').get(uid).n, 6, 'chaque tentative est conservée');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM puzzle_attempts WHERE user_id = ?').get(uid).n, 7, 'chaque tentative est conservée');
 });
 
 test('réussite avec indice : revient demain sans progresser dans les paliers', () => {
   const uid = makeUser('carol');
+  T.recordAttempt(uid, 2, { result: 'failed' });
   T.recordAttempt(uid, 2, { result: 'solved' });
   T.recordAttempt(uid, 2, { result: 'solved-hint', hints: 1 });
   const s = db.prepare('SELECT * FROM puzzle_schedule WHERE user_id = ? AND puzzle_id = 2').get(uid);
   assert.equal(s.interval_days, 1); assert.equal(s.reps, 1);
+});
+
+test('session de résolution : le résultat vient du serveur, pas du client', () => {
+  const uid = makeUser('zed');
+  const p = T.getPuzzle(3); // solution en 2 coups du joueur
+  assert.equal(T.sessionResult(uid, p), null, 'pas de session → pas de résultat');
+  T.openSession(uid, 3);
+  assert.equal(T.sessionResult(uid, p).result, 'failed', 'rien joué → échec');
+  T.sessionProgress(uid, 3, 1);
+  assert.equal(T.sessionResult(uid, p).result, 'failed', 'incomplet → échec');
+  T.sessionProgress(uid, 3, 2);
+  assert.equal(T.sessionResult(uid, p).result, 'solved');
+  T.sessionHint(uid, 3);
+  assert.equal(T.sessionResult(uid, p).result, 'solved-hint');
+  T.sessionSolution(uid, 3);
+  assert.equal(T.sessionResult(uid, p).result, 'failed', 'solution vue → échec');
+  T.recordAttempt(uid, 3, T.sessionResult(uid, p));
+  assert.equal(T.getSession(uid, 3), null, 'session fermée après enregistrement');
+});
+
+test('catégorie sans thème d exercice (ouvertures) : repli sur un exercice au niveau, jamais d erreur', () => {
+  const uid = makeUser('yann');
+  for (let i = 0; i < 20; i++) {
+    const r = T.pickPuzzle(uid, { category: 'openings' });
+    assert.ok(r && r.puzzle, 'un exercice est toujours proposé');
+  }
+  const prog = T.pickProgramPuzzle(uid);
+  assert.ok(prog && prog.puzzle);
 });
 
 test('révision due : proposée en priorité', () => {

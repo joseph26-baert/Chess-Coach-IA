@@ -7,7 +7,7 @@ import path from 'node:path';
 import { Chess } from 'chess.js';
 import { chooseMove, newPersona } from '../server/engine/ai.js';
 import { analyse, shutdown } from '../server/engine/stockfish.js';
-import { verifyPuzzle, puzzleKey, detectThemes } from '../server/services/puzzles.js';
+import { verifyPuzzle, puzzleKey } from '../server/services/puzzles.js';
 import { toWhiteCp } from '../server/services/analysis.js';
 
 const TARGET = Number(process.argv[2] || 500);
@@ -15,8 +15,21 @@ const FILE = process.argv[3] || path.join('server', 'puzzles', 'library.json');
 fs.mkdirSync(path.dirname(FILE), { recursive: true });
 const library = fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE, 'utf8')) : [];
 const keys = new Set(library.map(p => puzzleKey(p.fen)));
-for (const p of library) p.themes = detectThemes(p.fen, p.solution, { mate: p.mate ?? null }); // thèmes recalculés avec les règles actuelles
 console.log(`${library.length} exercices existants, cible ${TARGET}`);
+
+// Re-vérification des exercices existants avec les règles actuelles (solution, thèmes, difficulté) ;
+// ceux qui ne passent plus sont retirés. Lancer avec REVERIFY=1.
+if (process.env.REVERIFY) {
+  const kept = [];
+  for (const p of library) {
+    const v = await verifyPuzzle(p.fen);
+    if (v) kept.push({ ...p, solution: v.solution, themes: v.themes, rating: v.rating, mate: v.mate, gain: v.gain });
+  }
+  console.log(`re-vérification : ${kept.length}/${library.length} conservés`);
+  library.length = 0; library.push(...kept);
+  keys.clear(); for (const p of library) keys.add(puzzleKey(p.fen));
+  fs.writeFileSync(FILE, JSON.stringify(library));
+}
 
 const themeCount = () => library.reduce((m, p) => { for (const t of p.themes) m[t] = (m[t] || 0) + 1; return m; }, {});
 let games = 0;

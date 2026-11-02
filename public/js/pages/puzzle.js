@@ -57,14 +57,14 @@ export async function render(main) {
       return;
     }
     p = puzzle; index = 0; hints = 0; finished = false; playedSan = []; startedAt = Date.now();
-    window.__puzzleId = p.id; window.__fen = p.fen; // utiles aux tests automatisés
     seen.push(p.id);
     boardApi?.destroy();
     boardApi = createBoard(el('board'), { fen: p.fen, orientation: p.turn, onMove: onUserMove });
+    el('board').dataset.puzzleId = p.id; el('board').dataset.fen = p.fen;
     chessMoves = boardApi.chess;
     boardApi.enableInput(p.turn);
     el('pz-turn').innerHTML = html`<span class="dot ${p.turn === 'white' ? 'w' : 'b'}"></span> Trait aux ${p.turn === 'white' ? 'blancs' : 'noirs'} · trouvez le meilleur coup${p.length > 1 ? ` (${p.length} coups)` : ''}`;
-    el('pz-sub').textContent = p.reason === 'review' ? 'Révision (répétition espacée)' : p.reason === 'own' ? 'Tiré de votre propre partie' : theme ? `Thème : ${p.themeLabels.join(', ')}` : 'Programme du jour';
+    el('pz-sub').textContent = p.reason === 'review' ? 'Révision (répétition espacée)' : p.reason === 'own' ? 'Tiré de votre propre partie' : theme ? `Thème : ${p.themeLabels.join(', ')}` : p.slot ? `Programme du jour — ${p.slot}` : 'Programme du jour';
     el('pz-status').textContent = 'À vous de jouer.';
     el('pz-moves').innerHTML = '';
     el('next-btn').hidden = true; el('hint-btn').disabled = false; el('solution-btn').disabled = false;
@@ -80,10 +80,14 @@ export async function render(main) {
   async function onUserMove({ from, to, promotion }) {
     if (finished) return false;
     const uci = from + to + (promotion || '');
-    const r = await api.post(`/training/puzzle/${p.id}/move`, { uci, index });
+    boardApi.disableInput(); // pas de second coup pendant la validation
+    let r;
+    try { r = await api.post(`/training/puzzle/${p.id}/move`, { uci, index }); }
+    catch (e) { if (myGen === gen) { toast(e.message); boardApi.enableInput(p.turn); } return false; }
     if (myGen !== gen) return false;
     if (!r.correct) {
       el('pz-status').innerHTML = html`<span class="lbl-blunder">Ce n'est pas le bon coup.</span> Réessayez, demandez un indice ou regardez la solution.`;
+      boardApi.enableInput(p.turn);
       return false;
     }
     const mv = chessMoves.move({ from, to, promotion });
@@ -91,7 +95,7 @@ export async function render(main) {
     boardApi.setLastMove(from, to);
     renderMoves();
     index++;
-    if (r.done) return finish(hints ? 'solved-hint' : 'solved');
+    if (r.done) return finish();
     // Réponse adverse
     setTimeout(() => {
       if (myGen !== gen) return;
@@ -116,35 +120,47 @@ export async function render(main) {
     el('pz-moves').textContent = parts.join('  ');
   }
 
-  async function finish(result) {
+  async function finish() {
     finished = true;
     boardApi.disableInput();
     el('hint-btn').disabled = true; el('solution-btn').disabled = true;
-    const { attempt } = await api.post(`/training/puzzle/${p.id}/attempt`, { result, hints, time_ms: Date.now() - startedAt });
-    if (myGen !== gen) return true;
-    stats.done++; if (result !== 'failed') stats.solved++;
-    updateStats();
-    const delta = attempt.rating_after - attempt.rating_before;
-    el('pz-status').innerHTML = result === 'failed'
-      ? html`<span class="lbl-blunder">Solution affichée.</span> Thème : ${p.themeLabels.join(', ')}. Niveau ${attempt.theme} : ${attempt.rating_after} (${delta >= 0 ? '+' : ''}${delta}). Cet exercice reviendra demain.`
-      : html`<span class="lbl-best">${result === 'solved' ? 'Réussi !' : 'Réussi avec indice.'}</span> Thème : ${p.themeLabels.join(', ')}. Niveau ${attempt.theme} : ${attempt.rating_after} (${delta >= 0 ? '+' : ''}${delta}).${attempt.retired ? ' Exercice maîtrisé.' : ''}`;
-    el('next-btn').hidden = false;
+    try {
+      // Le serveur déduit le résultat de ce qu'il a validé (coups, indices, solution vue)
+      const { attempt } = await api.post(`/training/puzzle/${p.id}/attempt`, {});
+      if (myGen !== gen) return true;
+      const result = attempt.result;
+      stats.done++; if (result !== 'failed') stats.solved++;
+      updateStats();
+      const delta = attempt.rating_after - attempt.rating_before;
+      const themeText = attempt.themeLabels.join(', ') + (attempt.mate_in ? ` (mat en ${attempt.mate_in})` : '');
+      el('pz-status').innerHTML = result === 'failed'
+        ? html`<span class="lbl-blunder">Raté.</span> Thème : ${themeText}. Niveau ${attempt.theme} : ${attempt.rating_after} (${delta >= 0 ? '+' : ''}${delta}). Cet exercice reviendra demain.`
+        : html`<span class="lbl-best">${result === 'solved' ? 'Réussi !' : 'Réussi avec indice.'}</span> Thème : ${themeText}. Niveau ${attempt.theme} : ${attempt.rating_after} (${delta >= 0 ? '+' : ''}${delta}).${attempt.retired ? ' Exercice maîtrisé.' : ''}`;
+    } catch (e) {
+      if (myGen === gen) el('pz-status').textContent = `Résultat non enregistré : ${e.message}`;
+    } finally {
+      if (myGen === gen) el('next-btn').hidden = false;
+    }
     return true;
   }
 
   el('hint-btn').addEventListener('click', async () => {
-    if (finished) return;
-    const { from } = await api.get(`/training/puzzle/${p.id}/hint?index=${index}`);
+    if (finished || !p) return;
+    let from;
+    try { ({ from } = await api.get(`/training/puzzle/${p.id}/hint`)); } catch (e) { toast(e.message); return; }
+    if (myGen !== gen) return;
     hints++;
     boardApi.setLastMove(from, from);
     el('pz-status').textContent = `Indice : jouez la pièce en ${from}.`;
   });
 
   el('solution-btn').addEventListener('click', async () => {
-    if (finished) return;
+    if (finished || !p) return;
     finished = true;
     boardApi.disableInput();
-    const { solution, san } = await api.get(`/training/puzzle/${p.id}/solution`);
+    let solution, san;
+    try { ({ solution, san } = await api.get(`/training/puzzle/${p.id}/solution`)); } catch (e) { toast(e.message); finished = false; boardApi.enableInput(p.turn); return; }
+    if (myGen !== gen) return;
     // Rejoue la solution depuis le début, coup par coup
     const c = boardApi.chess; c.load(p.fen); playedSan = [];
     for (let i = 0; i < solution.length; i++) {
@@ -156,7 +172,7 @@ export async function render(main) {
       await new Promise(r => setTimeout(r, 650));
     }
     finished = false; // finish() repasse à true
-    await finish('failed');
+    await finish();
   });
 
   el('next-btn').addEventListener('click', load);

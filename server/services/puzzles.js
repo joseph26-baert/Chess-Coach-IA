@@ -15,7 +15,7 @@ import { analyse } from '../engine/stockfish.js';
 import { toWhiteCp, isMateScore, mateIn, winProb, isHanging, isFork } from './analysis.js';
 
 export const VERIFY_DEPTH = Number(process.env.PUZZLE_DEPTH || 16);
-const MAX_SOLUTION_PLIES = 7;
+const MAX_SOLUTION_PLIES = 9;
 const UNIQUENESS_GAP = 120;     // centipions : le second meilleur coup doit être au moins aussi inférieur
 const MIN_GAIN = 180;           // centipions : gain minimal de la solution (hors mat)
 
@@ -91,38 +91,48 @@ export function material(chess) {
 }
 
 /**
- * Thèmes d'une solution : `fen` position de départ, `solution` coups UCI (le joueur joue les coups 0, 2, 4…)
+ * Thèmes d'une solution : `fen` position de départ, `solution` coups UCI (le joueur joue les coups 0, 2, 4…).
+ * Les motifs sont cherchés sur chacun des coups du joueur (la pointe peut venir au 2e ou 3e coup).
  */
 export function detectThemes(fen, solution, { mate = null } = {}) {
   const themes = new Set();
   const start = new Chess(fen);
   const me = start.turn();
+  const threatenedAtStart = start.board().flat().filter(q => q && q.color === me && q.type !== 'k' && isHanging(start, q.square, me)).map(q => q.square);
   const first = solution[0];
-  const after = new Chess(fen);
-  const mv = after.move({ from: first.slice(0, 2), to: first.slice(2, 4), promotion: first[4] });
+  const firstMove = new Chess(fen).move({ from: first.slice(0, 2), to: first.slice(2, 4), promotion: first[4] });
 
   if (mate !== null) themes.add(mate === 1 ? 'mate-1' : mate === 2 ? 'mate-2' : 'mate-3');
-  if (mv.promotion) themes.add('promotion');
-  if (!mate || mate > 1) {
-    if (isFork(start, first)) themes.add('fork');
-    const ps = pinOrSkewer(after, mv.to);
-    if (ps) themes.add(ps);
-    // Attaque à la découverte : une autre pièce du joueur attaque une pièce de valeur qu'elle n'attaquait pas avant
-    const before = attackedValuables(start, me);
-    const now = attackedValuables(after, me, [mv.to]).filter(s => !before.includes(s));
-    const byOthers = now.filter(s => after.attackers(s, me).some(a => a !== mv.to));
-    if (byOthers.length) themes.add('discovered-attack');
-    if (mv.captured && isHanging(start, mv.to, other(me))) themes.add('hanging-piece');
-    if (!themes.size && now.length >= 2) themes.add('double-attack');
+
+  const pos = new Chess(fen);
+  for (let i = 0; i < solution.length; i++) {
+    const uci = solution[i];
+    const before = new Chess(pos.fen());
+    const mv = pos.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+    if (i % 2 === 1) continue; // coup adverse
+    if (mv.promotion) themes.add('promotion');
+    if (mate === 1 && i === 0) continue;
+    if (isFork(before, uci)) themes.add('fork');
+    const ps = pinOrSkewer(pos, mv.to);
+    if (ps && !isHanging(pos, mv.to, me)) themes.add(ps);
+    // Attaque à la découverte : une autre pièce du joueur attaque une pièce de valeur qu'elle n'attaquait pas avant (hors roque)
+    if (!mv.san.startsWith('O-O')) {
+      const was = attackedValuables(before, me);
+      const now = attackedValuables(pos, me, [mv.to]).filter(sq => !was.includes(sq));
+      if (now.some(sq => pos.attackers(sq, me).some(a => a !== mv.to))) themes.add('discovered-attack');
+    }
+    if (mv.captured && mv.captured !== 'p' && isHanging(before, mv.to, other(me))) themes.add('hanging-piece');
+    if (!mv.captured && !mv.san.includes('+') && attackedValuables(pos, me, []).filter(sq => isHanging(pos, sq, other(me))).length >= 2) themes.add('double-attack');
   }
-  // Défense : au départ, une de nos pièces est en prise ou un mat nous menace, et la solution sauve la situation
-  const threatened = [...start.board().flat()].filter(q => q && q.color === me && q.type !== 'k' && isHanging(start, q.square, me));
-  if (threatened.length && !mv.captured && !mate) { themes.add('defense'); themes.add('threat'); }
+
+  // Défense : une pièce menacée au départ est sauvée par la solution (déplacée ou plus en prise)
+  if (threatenedAtStart.length && !mate) {
+    const saved = threatenedAtStart.every(sq => { const q = pos.get(sq); return !q || q.color !== me || !isHanging(pos, sq, me); });
+    if (saved && !firstMove.captured) { themes.add('defense'); themes.add('threat'); }
+  }
   const pieces = start.board().flat().filter(Boolean).length;
   if (pieces <= 8) themes.add('endgame');
-  const quiet = !mv.captured && !mv.san.includes('+') && !mv.san.includes('#') && !mv.promotion;
-  if (!themes.size) themes.add(quiet && solution.length <= 3 ? 'strategy' : solution.length >= 5 ? 'calculation' : 'material');
-  if (themes.size === 1 && themes.has('endgame')) themes.add(quiet ? 'strategy' : 'calculation');
+  if (!themes.size || (themes.size === 1 && themes.has('endgame'))) themes.add(solution.length >= 5 ? 'calculation' : 'material');
   return [...themes];
 }
 
@@ -177,6 +187,7 @@ export async function verifyPuzzle(fen) {
   let cur = new Chess(fen);
   cur.move({ from: first.main.move.slice(0, 2), to: first.main.move.slice(2, 4), promotion: first.main.move[4] });
   let lastEval = first.main.cp;
+  const mating = isMateScore(first.main.cp);
 
   while (solution.length < MAX_SOLUTION_PLIES && !cur.isGameOver()) {
     // Réponse adverse (meilleure défense)
@@ -185,30 +196,37 @@ export async function verifyPuzzle(fen) {
     const replyMove = reply.main.move;
     const next = new Chess(cur.fen());
     next.move({ from: replyMove.slice(0, 2), to: replyMove.slice(2, 4), promotion: replyMove[4] });
-    if (next.isGameOver()) { solution.push(replyMove); cur = next; break; }
+    if (next.isGameOver()) return null; // pat ou nulle après la réponse adverse : pas un bon exercice
 
-    // Le gain est-il déjà encaissé ? (matériel ou mat délivré) → on s'arrête avant la réponse adverse
-    const gainedNow = material(cur) * (me === 'w' ? 1 : -1) - startMaterial;
-    if (!isMateScore(lastEval) && gainedNow * 100 >= Math.min(lastEval, 300) - 50 && gainedNow >= 2) break;
+    // Le gain est-il encaissé ? Mesuré APRÈS la meilleure réponse adverse (une reprise annulerait un gain apparent)
+    const gainedNow = material(next) * (me === 'w' ? 1 : -1) - startMaterial;
+    if (!mating && gainedNow >= 2 && gainedNow * 100 >= Math.min(lastEval, 300) - 50) break;
 
     const ours = await evalLines(next.fen(), 3);
     if (!ours.main) break;
-    const forced = ours.alt ? ours.main.cp - ours.alt.cp >= 100 : true;
+    let forced;
+    if (isMateScore(ours.main.cp)) {
+      // Mat : la suite est forcée si l'autre coup ne mate pas, ou mate nettement plus lentement
+      const altMate = ours.alt && isMateScore(ours.alt.cp) && ours.alt.cp > 0;
+      forced = !altMate || (mateIn(ours.alt.cp * (me === 'w' ? 1 : -1)) - mateIn(ours.main.cp * (me === 'w' ? 1 : -1)) >= 2);
+    } else {
+      forced = ours.alt ? ours.main.cp - ours.alt.cp >= 100 : true;
+    }
     if (!forced) break; // plusieurs bons coups : l'exercice s'arrête ici
     solution.push(replyMove, ours.main.move);
     cur = next;
     cur.move({ from: ours.main.move.slice(0, 2), to: ours.main.move.slice(2, 4), promotion: ours.main.move[4] });
     lastEval = ours.main.cp;
   }
-  if (solution.length % 2 === 0 && !cur.isGameOver()) solution.pop(); // termine toujours sur un coup du joueur
+  if (solution.length % 2 === 0) solution.pop(); // termine toujours sur un coup du joueur
 
   const endMaterial = material(cur) * (me === 'w' ? 1 : -1);
-  const gain = isMateScore(first.main.cp) ? null : Math.round((endMaterial - startMaterial) * 100);
-  const mate = mateStart;
-  if (mate === null && gain !== null && gain < 150 && !cur.isCheckmate()) {
-    // Le gain n'est pas encaissé dans la longueur autorisée : trop long pour un exercice
-    if (lastEval < MIN_GAIN + 100) return null;
-  }
+  const completedMate = cur.isCheckmate();
+  // « Mat en N » seulement si le mat est délivré dans la solution ; sinon c'est une position gagnante à trouver
+  const mate = completedMate ? Math.ceil(solution.length / 2) : null;
+  if (mating && !completedMate && mateStart <= 4) return null; // mat court mais non forcé jusqu'au bout : ambigu
+  const gain = mating ? null : Math.round((endMaterial - startMaterial) * 100);
+  if (!mating && gain < 150 && lastEval < MIN_GAIN + 100) return null; // gain non encaissé : trop long pour un exercice
   const themes = detectThemes(fen, solution, { mate });
   const rating = estimateRating({ solution, mate, gain, pieces: startPieces, themes });
   return { fen, solution, themes, rating, mate, gain, turn: me };
