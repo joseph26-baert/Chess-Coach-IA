@@ -3,6 +3,7 @@
 import { Chessboard, INPUT_EVENT_TYPE, COLOR, FEN } from '/vendor/cm-chessboard/src/Chessboard.js';
 import { Markers, MARKER_TYPE } from '/vendor/cm-chessboard/src/extensions/markers/Markers.js';
 import { PromotionDialog, PROMOTION_DIALOG_RESULT_TYPE } from '/vendor/cm-chessboard/src/extensions/promotion-dialog/PromotionDialog.js';
+import { Arrows, ARROW_TYPE } from '/vendor/cm-chessboard/src/extensions/arrows/Arrows.js';
 import { Chess } from '/vendor/chess.js/chess.js';
 
 export { Chess, FEN };
@@ -19,7 +20,8 @@ function ensureCss() {
   cssLoaded = true;
   for (const href of ['/vendor/cm-chessboard/assets/chessboard.css',
                       '/vendor/cm-chessboard/assets/extensions/markers/markers.css',
-                      '/vendor/cm-chessboard/assets/extensions/promotion-dialog/promotion-dialog.css']) {
+                      '/vendor/cm-chessboard/assets/extensions/promotion-dialog/promotion-dialog.css',
+                      '/vendor/cm-chessboard/assets/extensions/arrows/arrows.css']) {
     const l = document.createElement('link');
     l.rel = 'stylesheet'; l.href = href;
     document.head.appendChild(l);
@@ -40,7 +42,7 @@ export function createBoard(el, { fen = FEN.start, orientation = 'white', onMove
     orientation: orientation === 'white' ? COLOR.white : COLOR.black,
     assetsUrl: '/vendor/cm-chessboard/assets/',
     style: { cssClass: 'coach', showCoordinates: true, animationDuration: 220, pieces: { file: 'pieces/staunty.svg' } },
-    extensions: [{ class: Markers, props: { autoMarkers: null } }, { class: PromotionDialog }],
+    extensions: [{ class: Markers, props: { autoMarkers: null } }, { class: PromotionDialog }, { class: Arrows }],
   });
 
   let inputColor = null;
@@ -133,6 +135,12 @@ export function createBoard(el, { fen = FEN.start, orientation = 'white', onMove
       board.removeMarkers(SELECTED);
     },
     setThreats(on) { threatsOn = on; refreshMarkers(); },
+    // Flèche (ex. meilleur coup) : type 'best' | 'played'
+    setArrows(list) {
+      board.removeArrows();
+      for (const a of list) if (a.from && a.to) board.addArrow(a.type === 'best' ? ARROW_TYPE.success : ARROW_TYPE.danger, a.from, a.to);
+    },
+    clearArrows() { board.removeArrows(); },
     setOrientation(color) { return board.setOrientation(color === 'white' ? COLOR.white : COLOR.black); },
     destroy() { board.destroy(); },
   };

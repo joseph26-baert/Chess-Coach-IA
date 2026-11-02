@@ -12,6 +12,7 @@ import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
 import gamesRoutes from './routes/games.js';
 import { shutdown as shutdownEngines } from './engine/stockfish.js';
+import { recoverQueue } from './services/analysis.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -19,6 +20,7 @@ const PORT = process.env.PORT || 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 runMigrations();
+recoverQueue();
 
 // Secret de session : variable d'environnement, sinon généré et conservé dans data/
 function sessionSecret() {

@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { db } from '../db.js';
 import { requireAuth, publicUser } from '../middleware.js';
 import * as G from '../services/games.js';
+import { getAnalysis, enqueueAnalysis } from '../services/analysis.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -41,6 +42,23 @@ router.get('/:id', wrap((req, res) => {
   const game = G.getGame(req.params.id, req.user.id);
   if (!game) throw G.httpError(404, 'Partie introuvable.');
   res.json({ game: G.serializeGame(game) });
+}));
+
+// Analyse de la partie (état d'avancement, puis rapport complet)
+router.get('/:id/analysis', wrap((req, res) => {
+  const game = G.getGame(req.params.id, req.user.id);
+  if (!game) throw G.httpError(404, 'Partie introuvable.');
+  res.json({ analysis: getAnalysis(game.id) });
+}));
+
+// (Re)lancer l'analyse
+router.post('/:id/analyse', wrap((req, res) => {
+  const game = G.getGame(req.params.id, req.user.id);
+  if (!game) throw G.httpError(404, 'Partie introuvable.');
+  if (game.status !== 'finished') throw G.httpError(409, 'La partie est encore en cours.');
+  if (game.move_count < 4) throw G.httpError(409, 'Partie trop courte pour être analysée.');
+  enqueueAnalysis(game.id, req.user.id);
+  res.status(202).json({ analysis: getAnalysis(game.id) });
 }));
 
 router.post('/:id/move', wrap(async (req, res) => {

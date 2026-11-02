@@ -4,6 +4,7 @@ import { Chess } from 'chess.js';
 import { db } from '../db.js';
 import { chooseMove, newPersona, validPersona, AI_MIN_ELO, AI_MAX_ELO } from '../engine/ai.js';
 import { computeNewElo, isRatable, isProvisional } from './elo.js';
+import { enqueueAnalysis } from './analysis.js';
 
 export const TIME_CONTROLS = {
   'none':  null,
@@ -275,6 +276,10 @@ function finishGame(game, chess, termination) {
     finished = getGame(game.id, game.user_id);
   })();
 
+  // Analyse automatique en arrière-plan (parties d'au moins 4 demi-coups)
+  if (finished.status === 'finished' && finished.termination === termination && plies >= 4) {
+    try { enqueueAnalysis(finished.id, finished.user_id); } catch (err) { console.error('[analysis] mise en file impossible', err); }
+  }
   return finished;
 }
 

@@ -229,9 +229,10 @@ function showEnd() {
         </div>
         ${state.user.provisional ? html`<div class="setup-hint">Classement provisoire (${state.user.rated_games}/5 parties).</div>` : ''}`
       : html`<div class="setup-hint">Partie non classée : abandon avant le 10ᵉ demi-coup.</div>`}
+      ${g.move_count >= 4 ? html`<div class="setup-hint" style="margin-top:6px">L'analyse de la partie est lancée automatiquement.</div>` : ''}
       <div class="end-actions">
         <button class="btn btn-primary" id="again-btn">Rejouer</button>
-        <a class="btn btn-ghost" href="#/partie/${g.id}">Revoir la partie</a>
+        <a class="btn btn-ghost" href="#/partie/${g.id}">Analyse et replay</a>
         <a class="btn btn-ghost" href="#/tableau-de-bord">Tableau de bord</a>
       </div>
     </div>`;

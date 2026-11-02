@@ -8,6 +8,7 @@ import path from 'node:path';
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'chess-coach-test-'));
 process.env.ENGINE_POOL = '1';
+process.env.ANALYSIS_AUTO = '0';
 
 const { db, runMigrations } = await import('../server/db.js');
 const G = await import('../server/services/games.js');

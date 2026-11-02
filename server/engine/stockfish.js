@@ -117,6 +117,8 @@ function release(engine) {
 }
 
 // Exécute `fn(engine)` avec un moteur réservé.
+export const waitingRequests = () => waiters.length;
+
 export async function withEngine(fn) {
   const engine = await acquire();
   try {

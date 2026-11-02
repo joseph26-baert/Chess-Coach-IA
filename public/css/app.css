@@ -295,3 +295,34 @@ p { margin: 0 0 1em; max-width: 62ch; }
 }
 .player-clock:empty { display: none; }
 .hist-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* --- Analyse ---------------------------------------------------------- */
+.lbl-best { color: var(--win); } .lbl-good { color: var(--text); } .lbl-inaccuracy { color: var(--amber); } .lbl-mistake { color: #E08A4F; } .lbl-blunder { color: var(--loss); }
+.move-btn sup { font-size: .7em; margin-left: 1px; }
+.move-btn.lbl-blunder, .move-btn.lbl-mistake, .move-btn.lbl-inaccuracy { font-weight: 600; }
+.acc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+.acc-row .value { font-size: 1.7rem; }
+.label-counts { display: flex; gap: 12px; flex-wrap: wrap; font-size: .9rem; margin-bottom: 8px; }
+.progress { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+.progress div { height: 100%; background: var(--green); transition: width .4s; }
+.eval-card { margin-top: 10px; padding: 12px 14px; }
+.eval-head { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--font-display); font-size: 1.1rem; margin-bottom: 4px; }
+.eval-chart { position: relative; height: 110px; }
+#comment-card { margin-top: 10px; padding: 12px 14px; }
+.comment-label { font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.err-row { display: grid; grid-template-columns: 100px 1fr; gap: 10px; width: 100%; text-align: left; background: transparent; border: 0; border-top: 1px solid var(--line); padding: 10px 0; cursor: pointer; color: var(--text); }
+.err-row:first-of-type { border-top: 0; }
+.err-row:hover { background: var(--surface-2); }
+.err-move { font-weight: 600; font-variant-numeric: tabular-nums; }
+.err-text { color: var(--text-2); font-size: .92rem; }
+.tag-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.tag { padding: 4px 10px; border-radius: 999px; font-size: .85rem; font-weight: 600; }
+.tag-good { background: rgba(125,190,111,.15); color: var(--win); }
+.tag-bad { background: rgba(217,112,95,.15); color: var(--loss); }
+.reco { margin: 0; padding-left: 18px; color: var(--text-2); }
+.reco li { margin-bottom: 6px; }
+.cm-chessboard .arrow-success { fill: #4F7C4A; stroke: #4F7C4A; opacity: .85; }
+.cm-chessboard .arrow-danger { fill: #D9705F; stroke: #D9705F; opacity: .8; }
+
+.report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 840px) { .report-grid { grid-template-columns: 1fr; } }
