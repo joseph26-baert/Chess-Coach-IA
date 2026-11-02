@@ -1,0 +1,60 @@
+import { html, raw } from '../ui.js';
+import { state } from '../app.js';
+
+// Position illustrative : milieu de partie, un cavalier blanc vient de sauter en f5
+const POSITION = [
+  'r.bq.rk.',
+  'pp..bppp',
+  '..np.n..',
+  '..p..N..',
+  '..P.P...',
+  '..N...P.',
+  'PP...PBP',
+  'R..Q.RK.',
+];
+const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+
+function board() {
+  let cells = '';
+  POSITION.forEach((row, r) => {
+    [...row].forEach((ch, c) => {
+      const light = (r + c) % 2 === 0;
+      const white = ch !== '.' && ch === ch.toUpperCase();
+      const hl = (r === 3 && c === 5) ? ' hl' : '';
+      cells += `<div class="${light ? 'l' : 'd'}${white ? ' w' : ''}${hl}">${ch === '.' ? '' : GLYPH[ch.toLowerCase()]}</div>`;
+    });
+  });
+  return raw(cells);
+}
+
+export async function render(main) {
+  const cta = state.user
+    ? html`<a class="btn btn-primary btn-lg" href="#/tableau-de-bord">Ouvrir mon tableau de bord</a>`
+    : html`<a class="btn btn-primary btn-lg" href="#/inscription">Créer mon compte</a>
+           <a class="btn btn-ghost btn-lg" href="#/connexion">J'ai déjà un compte</a>`;
+
+  main.innerHTML = html`
+    <section class="hero">
+      <div>
+        <h1>Un adversaire qui joue comme vous, et un coach qui vous connaît.</h1>
+        <p class="lead">Jouez contre une IA qui se trompe comme un humain, à votre niveau exact. Chaque partie fait évoluer votre Elo, est analysée, et nourrit un entraînement ciblé sur vos vraies faiblesses.</p>
+        <div class="hero-actions">${cta}</div>
+      </div>
+      <div class="hero-board" aria-hidden="true">${board()}</div>
+    </section>
+
+    <section class="features grid grid-3">
+      <div class="card">
+        <h3>Une IA crédible, pas un moteur bridé</h3>
+        <p>À 800 Elo elle laisse des pièces en prise ; à 1800 elle rate seulement les calculs profonds. Elle s'ajuste à vos résultats, sans jamais truquer l'issue.</p>
+      </div>
+      <div class="card">
+        <h3>Un Elo qui vous suit dans le temps</h3>
+        <p>Classement provisoire après vos premières parties, puis stabilisé. Chaque variation est conservée : revoyez votre niveau à n'importe quelle date.</p>
+      </div>
+      <div class="card">
+        <h3>Des exercices tirés de vos erreurs</h3>
+        <p>Fourchettes manquées, mats ratés, finales mal jouées : l'analyse de vos parties décide de ce que vous travaillez ensuite.</p>
+      </div>
+    </section>`;
+}
