@@ -9,13 +9,44 @@ let boardApi = null;
 let clockTimer = null;
 let game = null;
 let session = 0; // jeton de rendu : les réponses d'une page quittée sont ignorées
+let viewPly = null; // null = position actuelle ; sinon demi-coup affiché (relecture, lecture seule)
+let keyHandler = null;
+let endShown = false;
 
 export function unmount() {
   session++;
   clearInterval(clockTimer);
+  if (keyHandler) document.removeEventListener('keydown', keyHandler);
+  keyHandler = null;
+  viewPly = null;
   boardApi?.destroy();
   boardApi = null;
   game = null;
+}
+
+// Pièces capturées par chaque camp (déduites de la position) et avantage matériel
+const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+const INITIAL = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+function materialFromFen(fen) {
+  const count = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
+  for (const ch of fen.split(' ')[0]) {
+    const t = ch.toLowerCase();
+    if (t in PIECE_VALUE) count[ch === t ? 'b' : 'w'][t]++;
+  }
+  // Les pièces blanches manquantes ont été prises par les noirs, et inversement (les promotions sont ignorées)
+  const takenBy = { w: [], b: [] };
+  for (const t of ['q', 'r', 'b', 'n', 'p']) {
+    for (let i = 0; i < Math.max(0, INITIAL[t] - count.b[t]); i++) takenBy.w.push('b' + t);
+    for (let i = 0; i < Math.max(0, INITIAL[t] - count.w[t]); i++) takenBy.b.push('w' + t);
+  }
+  const value = (c) => Object.entries(count[c]).reduce((s, [t, n]) => s + n * PIECE_VALUE[t], 0);
+  return { takenBy, diff: value('w') - value('b') }; // > 0 : avantage blanc
+}
+function capturedHtml(color, fen) {
+  const m = materialFromFen(fen);
+  const mine = color === 'white' ? 'w' : 'b';
+  const adv = mine === 'w' ? m.diff : -m.diff;
+  return html`<span class="captured">${m.takenBy[mine].map(p => raw(`<svg viewBox="0 0 40 40"><use href="/pieces/coach.svg#${p}"/></svg>`))}${adv > 0 ? html`<span class="adv">+${adv}</span>` : ''}</span>`;
 }
 
 export async function render(main) {
@@ -78,19 +109,20 @@ function renderSetup(main) {
 function renderGame(main, g) {
   const token = ++session;
   game = g;
+  viewPly = null; endShown = g.status === 'finished';
   const myColor = g.user_color;
   main.innerHTML = html`
     <div class="play">
       <div class="play-board-col">
         <div class="player-bar">
           <span class="avatar small">IA</span>
-          <span class="player-name">IA · ${g.ai_elo} Elo <span class="setup-hint">· ${g.ai_persona}</span></span>
+          <span class="player-name">IA · ${g.ai_elo} Elo <span class="setup-hint">· ${g.ai_persona}</span><span id="captured-ai"></span></span>
           <span class="player-clock" id="clock-ai">${g.time_control === 'none' ? '' : '∞'}</span>
         </div>
         <div class="board-wrap"><div id="board"></div></div>
         <div class="player-bar">
           <span class="avatar small">${state.user.username.slice(0, 2).toUpperCase()}</span>
-          <span class="player-name">${state.user.username} · ${state.user.elo} Elo</span>
+          <span class="player-name">${state.user.username} · ${state.user.elo} Elo<span id="captured-user"></span></span>
           <span class="player-clock" id="clock-user"></span>
         </div>
       </div>
@@ -98,6 +130,13 @@ function renderGame(main, g) {
         <div class="card">
           <div class="status" id="status"></div>
           <div class="moves" id="moves"></div>
+          <div class="replay-bar">
+            <button class="btn btn-ghost btn-sm" data-nav="start" type="button" title="Début">⏮</button>
+            <button class="btn btn-ghost btn-sm" data-nav="prev" type="button" title="Coup précédent">◀</button>
+            <button class="btn btn-ghost btn-sm" data-nav="next" type="button" title="Coup suivant">▶</button>
+            <button class="btn btn-ghost btn-sm" data-nav="end" type="button" title="Position actuelle">⏭</button>
+            <span class="setup-hint" id="replay-hint"></span>
+          </div>
           <div class="play-actions">
             <button class="btn btn-danger btn-sm" id="resign-btn">Abandonner</button>
             <label class="check"><input type="checkbox" id="threats-toggle" ${state.user.show_threats ? 'checked' : ''}> Cases menacées</label>
@@ -112,8 +151,33 @@ function renderGame(main, g) {
   main.querySelector('#threats-toggle').addEventListener('change', e => boardApi.setThreats(e.target.checked));
   main.querySelector('#resign-btn').addEventListener('click', resign);
 
+  // Relecture des coups joués (lecture seule) : boutons, clic sur un coup, flèches du clavier
+  main.querySelectorAll('[data-nav]').forEach(b => b.addEventListener('click', () => {
+    const n = game.moves.length, cur = viewPly ?? n;
+    const d = b.dataset.nav;
+    showPly(d === 'start' ? 0 : d === 'end' ? n : d === 'prev' ? cur - 1 : cur + 1);
+  }));
+  main.querySelector('#moves').addEventListener('click', e => { const m = e.target.closest('.move-btn'); if (m) showPly(Number(m.dataset.ply)); });
+  keyHandler = (e) => {
+    if (!game || e.target.closest('input, textarea')) return;
+    const n = game.moves.length, cur = viewPly ?? n;
+    if (e.key === 'ArrowLeft') showPly(cur - 1);
+    else if (e.key === 'ArrowRight') showPly(cur + 1);
+  };
+  document.addEventListener('keydown', keyHandler);
+
   updateView();
   startClock();
+}
+
+// Affiche la position après le demi-coup `ply` (0 = départ) ; au dernier coup, on revient au direct
+function showPly(ply) {
+  const n = game.moves.length;
+  ply = Math.max(0, Math.min(n, ply));
+  viewPly = ply >= n ? null : ply;
+  const fen = viewPly === null ? game.fen : (viewPly === 0 ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : game.moves[viewPly - 1].fen_after);
+  boardApi.setPosition(fen, true);
+  updateView();
 }
 
 async function submitMove({ from, to, promotion }) {
@@ -165,36 +229,53 @@ function resign() {
 function applyServerState(g, user) {
   game = g;
   if (user) setUser(user);
-  boardApi.setPosition(g.fen, true);
+  if (viewPly === null) boardApi.setPosition(g.fen, true); // en relecture, on ne saute pas à la position actuelle
   updateView();
 }
 
 function updateView() {
   const g = game;
-  const last = g.moves[g.moves.length - 1];
+  const n = g.moves.length;
+  const browsing = viewPly !== null && viewPly < n;
+  const shownPly = browsing ? viewPly : n;
+  const last = shownPly > 0 ? g.moves[shownPly - 1] : null;
   boardApi.setLastMove(last?.uci.slice(0, 2), last?.uci.slice(2, 4));
 
+  // Relecture : l'échiquier reste verrouillé tant qu'on n'est pas revenu à la position actuelle
   const myTurn = g.status === 'ongoing' && g.turn === g.user_color;
-  if (myTurn) boardApi.enableInput(g.user_color); else boardApi.disableInput();
+  if (myTurn && !browsing) boardApi.enableInput(g.user_color); else boardApi.disableInput();
 
   const status = document.getElementById('status');
-  if (g.status === 'ongoing') {
+  if (browsing) {
+    status.textContent = shownPly === 0 ? 'Relecture : position de départ.' : `Relecture : coup ${Math.ceil(shownPly / 2)}${shownPly % 2 ? '' : '…'} sur ${Math.ceil(n / 2)}.`;
+  } else if (g.status === 'ongoing') {
     status.textContent = myTurn ? (g.in_check ? 'Échec ! À vous de jouer.' : 'À vous de jouer.') : "L'IA réfléchit…";
   } else {
     status.textContent = 'Partie terminée.';
   }
+  const hint = document.getElementById('replay-hint');
+  if (hint) hint.textContent = browsing ? 'Lecture seule — ⏭ pour revenir à la partie' : (n ? 'Revoir les coups : ◀ ▶ ou flèches du clavier' : '');
+  document.querySelectorAll('[data-nav]').forEach(b => { b.disabled = (b.dataset.nav === 'start' || b.dataset.nav === 'prev') ? shownPly === 0 : !browsing; });
 
-  // Liste des coups
+  // Pièces prises et avantage matériel (sur la position affichée)
+  const shownFen = browsing ? (shownPly === 0 ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' : g.moves[shownPly - 1].fen_after) : g.fen;
+  const capUser = document.getElementById('captured-user'), capAi = document.getElementById('captured-ai');
+  if (capUser) capUser.innerHTML = capturedHtml(g.user_color, shownFen);
+  if (capAi) capAi.innerHTML = capturedHtml(g.user_color === 'white' ? 'black' : 'white', shownFen);
+
+  // Liste des coups (cliquables pour la relecture)
   const rows = [];
-  for (let i = 0; i < g.moves.length; i += 2) {
-    rows.push(html`<div class="move-row"><span class="n">${i / 2 + 1}.</span><span>${g.moves[i].san}</span><span>${g.moves[i + 1]?.san ?? ''}</span></div>`);
+  for (let i = 0; i < n; i += 2) {
+    const btn = (k) => g.moves[k] ? html`<button class="move-btn ${shownPly === k + 1 ? 'on' : ''}" data-ply="${k + 1}" type="button">${g.moves[k].san}</button>` : html`<span></span>`;
+    rows.push(html`<div class="move-row"><span class="n">${i / 2 + 1}.</span>${btn(i)}${btn(i + 1)}</div>`);
   }
   const movesEl = document.getElementById('moves');
   movesEl.innerHTML = rows.length ? html`${rows}` : html`<span class="setup-hint">Aucun coup joué.</span>`;
-  movesEl.scrollTop = movesEl.scrollHeight;
+  const on = movesEl.querySelector('.move-btn.on');
+  if (on && browsing) on.scrollIntoView({ block: 'nearest' }); else movesEl.scrollTop = movesEl.scrollHeight;
 
   updateClockDisplay();
-  if (g.status === 'finished') { clearInterval(clockTimer); showEnd(); }
+  if (g.status === 'finished') { clearInterval(clockTimer); if (!endShown) { endShown = true; showEnd(); } }
 }
 
 // --- Pendule -------------------------------------------------------------

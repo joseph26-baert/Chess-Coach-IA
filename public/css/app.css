@@ -404,3 +404,13 @@ p { margin: 0 0 1em; max-width: 62ch; }
 .journal-val { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-2); }
 @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } .journal-row { grid-template-columns: 1fr auto; } .journal-title { grid-column: 1 / -1; } }
 .export-list { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ----- Partie : pièces prises, relecture ----- */
+.captured { display: inline-flex; align-items: center; margin-left: 10px; vertical-align: middle; }
+.captured svg { width: 21px; height: 21px; margin-left: -6px; }
+.captured svg:first-child { margin-left: 0; }
+.captured .adv { margin-left: 6px; font-size: .8rem; color: var(--text-2); font-weight: 600; }
+.replay-bar { display: flex; align-items: center; gap: 4px; margin: 8px 0; flex-wrap: wrap; }
+.replay-bar .btn { padding: 4px 10px; }
+.replay-bar .btn:disabled { opacity: .35; cursor: default; }
+.replay-bar .setup-hint { margin-left: 6px; }
