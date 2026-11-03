@@ -32,8 +32,9 @@ server/
   db.js             SQLite (better-sqlite3) + exécution des migrations
   migrations/       schéma, migrations ADDITIVES uniquement (jamais de DROP)
   middleware.js     requireAuth, publicUser
-  routes/           auth, profile, games
-  services/         elo (formule documentée), games (coups, fin de partie, pendule)
+  routes/           auth, profile, games, training, admin
+  services/         elo, games, analysis (évaluation des coups), puzzles (vérification des exercices), training (sélection, SRS, faiblesses)
+  puzzles/          library.json : bibliothèque d'exercices vérifiés par Stockfish
   engine/           stockfish (pool de processus UCI), ai (choix de coup par niveau Elo)
 public/
   index.html        coquille de l'application monopage
@@ -79,11 +80,18 @@ Leviers (dans `server/engine/ai.js`, `paramsForElo`) : profondeur fractionnaire 
 température du softmax (240 → 60 cp), taux de gaffes plausibles (17 % → 2,5 %), mats en 1 et
 prises gratuites manqués. La profondeur est un levier très brutal : elle reste à 3 jusqu'à 1000 Elo.
 
+## Bibliothèque d'exercices
+
+`node scripts/build-library.mjs [cible]` génère des parties IA contre IA, repère les positions tactiques et
+les vérifie à profondeur 16 (solution unique, gain net ou mat complet). `REVERIFY=1` repasse les exercices
+existants avec les règles courantes. Les exercices personnels (tirés des parties du joueur) suivent la même
+vérification, après chaque analyse.
+
 ## Avancement
 
 - [x] Phase 1a — comptes, sessions, profil, paramètres, coquille de l'application
 - [x] Phase 1b — échiquier, parties contre l'IA, pendule, sauvegarde, Elo, historique, replay
 - [x] Phase 2 — IA adaptative « humaine » (erreurs plausibles, personnalité, ouverture, calibration)
 - [x] Phase 3 — analyse des parties (Stockfish, rapport, replay annoté, motifs d'erreur)
-- [ ] Phase 4 — entraînement et détection des faiblesses
+- [x] Phase 4 — entraînement (bibliothèque vérifiée, exercices personnels, répétition espacée, faiblesses, programme du jour)
 - [ ] Phase 5 — graphiques, statistiques, programme personnalisé
