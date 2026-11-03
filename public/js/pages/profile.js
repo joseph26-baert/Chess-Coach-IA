@@ -39,6 +39,7 @@ export async function render(main) {
         <div class="list-row"><span class="k">Sur 7 jours</span><span>${formatDelta(elo.delta7d)}</span></div>
         <div class="list-row"><span class="k">Sur 30 jours</span><span>${formatDelta(elo.delta30d)}</span></div>
         <div class="list-row"><span class="k">Depuis la création du compte</span><span>${formatDelta(elo.deltaAllTime)}</span></div>
+        <div style="margin-top:10px"><a href="#/progression">Voir la courbe et les graphiques</a> · <a href="#/statistiques">Statistiques</a></div>
       </div>
       <div class="card">
         <h3>Points forts et faiblesses</h3>

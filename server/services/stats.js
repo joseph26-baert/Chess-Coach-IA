@@ -1,0 +1,238 @@
+// Statistiques et progression : agrégations en lecture seule sur l'historique
+// (parties, Elo, analyses, exercices). Tout est calculé à la demande ; aucune
+// donnée n'est modifiée ici.
+import { db } from '../db.js';
+import { CATEGORIES_FR } from './analysis.js';
+import { THEMES } from './puzzles.js';
+import { CATEGORIES } from './training.js';
+
+export const PERIODS = { '7': 7, '30': 30, '90': 90, '365': 365, all: null };
+
+export function periodDays(raw) {
+  const key = String(raw ?? '30');
+  if (!(key in PERIODS)) return undefined;
+  return PERIODS[key];
+}
+
+const DAY = 86400_000;
+const iso = (ms) => new Date(ms).toISOString();
+const day = (ts) => String(ts).slice(0, 10);
+const pct = (num, den) => (den ? Math.round(1000 * num / den) / 10 : null);
+const avg = (xs) => (xs.length ? Math.round(10 * xs.reduce((s, x) => s + x, 0) / xs.length) / 10 : null);
+
+// Bornes [from, to) d'une période et de la période précédente de même longueur
+function bounds(days, now = Date.now()) {
+  if (days === null) return { from: null, to: iso(now), prevFrom: null, prevTo: null };
+  const from = now - days * DAY;
+  return { from: iso(from), to: iso(now), prevFrom: iso(from - days * DAY), prevTo: iso(from) };
+}
+
+// ---------------------------------------------------------------------------
+// Parties
+
+function finishedGames(userId, from, to) {
+  return db.prepare(`SELECT g.id, g.user_color, g.ai_elo, g.ai_offset, g.time_control, g.termination, g.user_score, g.rated,
+                            g.elo_delta, g.move_count, g.duration_s, g.finished_at,
+                            a.accuracy_user, a.acpl_user, a.inaccuracies, a.mistakes, a.blunders
+                     FROM games g
+                     LEFT JOIN analyses a ON a.id = (SELECT MAX(id) FROM analyses WHERE game_id = g.id AND status = 'done')
+                     WHERE g.user_id = ? AND g.status = 'finished'
+                       AND (? IS NULL OR g.finished_at >= ?) AND g.finished_at < ?
+                     ORDER BY g.finished_at ASC, g.id ASC`).all(userId, from, from, to);
+}
+
+function tally(games) {
+  const t = { games: games.length, wins: 0, draws: 0, losses: 0 };
+  for (const g of games) { if (g.user_score === 1) t.wins++; else if (g.user_score === 0.5) t.draws++; else t.losses++; }
+  t.winRate = pct(t.wins, t.games);
+  t.score = t.games ? Math.round(1000 * (t.wins + t.draws / 2) / t.games) / 10 : null; // points marqués en %
+  return t;
+}
+
+function groupTally(games, key) {
+  const groups = {};
+  for (const g of games) (groups[g[key] ?? 'none'] ||= []).push(g);
+  return Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, tally(v)]));
+}
+
+function accuracy(games) {
+  const analysed = games.filter(g => g.accuracy_user !== null && g.accuracy_user !== undefined);
+  return {
+    analysed: analysed.length,
+    accuracy: avg(analysed.map(g => g.accuracy_user)),
+    acpl: avg(analysed.map(g => g.acpl_user)),
+    perGame: {
+      inaccuracies: avg(analysed.map(g => g.inaccuracies || 0)),
+      mistakes: avg(analysed.map(g => g.mistakes || 0)),
+      blunders: avg(analysed.map(g => g.blunders || 0)),
+    },
+  };
+}
+
+function streaks(games) {
+  let best = 0, cur = 0, current = 0, worst = 0, curLoss = 0;
+  for (const g of games) {
+    if (g.user_score === 1) { cur++; curLoss = 0; } else if (g.user_score === 0) { curLoss++; cur = 0; } else { cur = 0; curLoss = 0; }
+    best = Math.max(best, cur); worst = Math.max(worst, curLoss);
+  }
+  // série en cours (depuis la fin)
+  for (let i = games.length - 1; i >= 0; i--) {
+    if (games[i].user_score === 1 && (current >= 0)) { current++; } else if (games[i].user_score === 0 && current <= 0) { current--; } else break;
+  }
+  return { bestWin: best, worstLoss: worst, current };
+}
+
+// ---------------------------------------------------------------------------
+// Elo
+
+function eloCurve(userId, from, to) {
+  const rows = db.prepare(`SELECT game_id, elo_before, elo_after, delta, provisional, reason, created_at FROM rating_history
+                           WHERE user_id = ? AND created_at < ? ORDER BY created_at ASC, id ASC`).all(userId, to);
+  if (!rows.length) return { points: [], start: null, end: null, delta: 0, peak: null, low: null };
+  // Point de départ : Elo juste avant la période (dernière valeur connue), ou l'initialisation
+  const inPeriod = from ? rows.filter(r => r.created_at >= from) : rows;
+  const before = from ? rows.filter(r => r.created_at < from) : [];
+  const startElo = before.length ? before[before.length - 1].elo_after : rows[0].elo_before;
+  const startAt = from ?? rows[0].created_at;
+  const points = [];
+  // Point de départ synthétique, sauf si la période commence par la ligne d'initialisation du compte
+  if (!(inPeriod[0]?.reason === 'init' && !before.length)) points.push({ t: startAt, elo: startElo, game_id: null, provisional: before.length ? before[before.length - 1].provisional : 1 });
+  for (const r of inPeriod) points.push({ t: r.created_at, elo: r.elo_after, delta: r.delta, game_id: r.game_id, provisional: r.provisional });
+  const elos = points.map(p => p.elo);
+  return { points, start: startElo, end: elos[elos.length - 1], delta: elos[elos.length - 1] - startElo, peak: Math.max(...elos), low: Math.min(...elos) };
+}
+
+// ---------------------------------------------------------------------------
+// Exercices
+
+function puzzleStats(userId, from, to) {
+  const rows = db.prepare(`SELECT a.result, a.theme, a.time_ms, a.created_at FROM puzzle_attempts a
+                           WHERE a.user_id = ? AND (? IS NULL OR a.created_at >= ?) AND a.created_at < ? ORDER BY a.created_at`).all(userId, from, from, to);
+  const solved = rows.filter(r => r.result === 'solved').length;
+  const withHint = rows.filter(r => r.result === 'solved-hint').length;
+  const byCategory = {};
+  for (const r of rows) {
+    const cat = THEMES[r.theme]?.category || 'tactics';
+    const c = (byCategory[cat] ||= { category: cat, label: CATEGORIES_FR[cat], attempts: 0, solved: 0 });
+    c.attempts++; if (r.result === 'solved') c.solved++;
+  }
+  for (const c of Object.values(byCategory)) c.rate = pct(c.solved, c.attempts);
+  const times = rows.filter(r => r.time_ms).map(r => r.time_ms / 1000);
+  return { attempts: rows.length, solved, withHint, failed: rows.length - solved - withHint, rate: pct(solved, rows.length),
+           avgTimeS: avg(times), byCategory: Object.values(byCategory).sort((a, b) => b.attempts - a.attempts) };
+}
+
+function themeRatings(userId) {
+  const rows = db.prepare('SELECT theme, rating, attempts, solved, updated_at FROM theme_ratings WHERE user_id = ?').all(userId);
+  return rows.filter(r => THEMES[r.theme]).map(r => ({ ...r, label: THEMES[r.theme].fr, category: THEMES[r.theme].category, rate: pct(r.solved, r.attempts) }))
+             .sort((a, b) => b.attempts - a.attempts);
+}
+
+// ---------------------------------------------------------------------------
+// Séries temporelles (par semaine ISO-like : lundi → dimanche, en UTC)
+
+function weekStart(ts) {
+  const d = new Date(ts);
+  const dow = (d.getUTCDay() + 6) % 7; // lundi = 0
+  d.setUTCDate(d.getUTCDate() - dow); d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+function weeklyBuckets(from, to, weeks = 12) {
+  const end = weekStart(to);
+  const keys = [];
+  let d = new Date(end + 'T00:00:00Z');
+  const first = from ? weekStart(from) : null;
+  for (let i = 0; i < 52; i++) {
+    const k = d.toISOString().slice(0, 10);
+    if (first && k < first) break;
+    keys.unshift(k);
+    if (!first && keys.length >= weeks) break;
+    d = new Date(d.getTime() - 7 * DAY);
+  }
+  return keys;
+}
+
+function activity(userId, games, from, to) {
+  const keys = weeklyBuckets(from, to);
+  const set = new Set(keys);
+  const g = Object.fromEntries(keys.map(k => [k, { week: k, games: 0, wins: 0, puzzles: 0, solved: 0, accuracy: [], blunders: [] }]));
+  for (const x of games) { const k = weekStart(x.finished_at); if (!set.has(k)) continue; g[k].games++; if (x.user_score === 1) g[k].wins++; if (x.accuracy_user !== null && x.accuracy_user !== undefined) { g[k].accuracy.push(x.accuracy_user); g[k].blunders.push((x.blunders || 0) + (x.mistakes || 0)); } }
+  const attempts = db.prepare(`SELECT result, created_at FROM puzzle_attempts WHERE user_id = ? AND created_at >= ? AND created_at < ?`)
+    .all(userId, keys[0] + 'T00:00:00.000Z', to);
+  for (const a of attempts) { const k = weekStart(a.created_at); if (!set.has(k)) continue; g[k].puzzles++; if (a.result === 'solved') g[k].solved++; }
+  return keys.map(k => ({ week: k, games: g[k].games, wins: g[k].wins, puzzles: g[k].puzzles, solved: g[k].solved,
+                          accuracy: avg(g[k].accuracy), errorsPerGame: avg(g[k].blunders) }));
+}
+
+// Historique des faiblesses (une valeur par jour et par catégorie, dernière du jour)
+function weaknessHistory(userId, from, to) {
+  const rows = db.prepare(`SELECT category, score, computed_at FROM weakness_scores WHERE user_id = ? AND (? IS NULL OR computed_at >= ?) AND computed_at < ?
+                           ORDER BY computed_at ASC, id ASC`).all(userId, from, from, to);
+  const series = Object.fromEntries(CATEGORIES.map(c => [c, {}]));
+  for (const r of rows) if (series[r.category]) series[r.category][day(r.computed_at)] = r.score;
+  const days = [...new Set(rows.map(r => day(r.computed_at)))].sort();
+  return { days, series: CATEGORIES.map(c => ({ category: c, label: CATEGORIES_FR[c], values: days.map(d => series[c][d] ?? null) })) };
+}
+
+// Erreurs par catégorie dans la période (événements d'erreur des analyses)
+function errorsByCategory(userId, from, to) {
+  const rows = db.prepare(`SELECT category, severity, COUNT(*) AS n FROM error_events
+                           WHERE user_id = ? AND (? IS NULL OR created_at >= ?) AND created_at < ? GROUP BY category, severity`).all(userId, from, from, to);
+  const out = Object.fromEntries(CATEGORIES.map(c => [c, { category: c, label: CATEGORIES_FR[c], inaccuracy: 0, mistake: 0, blunder: 0, total: 0 }]));
+  for (const r of rows) if (out[r.category]) { out[r.category][r.severity] = r.n; out[r.category].total += r.n; }
+  return Object.values(out).sort((a, b) => b.total - a.total);
+}
+
+// ---------------------------------------------------------------------------
+// Points d'entrée
+
+export function statistics(userId, days = 30, now = Date.now()) {
+  const b = bounds(days, now);
+  const games = finishedGames(userId, b.from, b.to);
+  const prevGames = days === null ? [] : finishedGames(userId, b.prevFrom, b.prevTo);
+  const elo = eloCurve(userId, b.from, b.to);
+  const prevElo = days === null ? null : eloCurve(userId, b.prevFrom, b.prevTo);
+  const puzzles = puzzleStats(userId, b.from, b.to);
+  const prevPuzzles = days === null ? null : puzzleStats(userId, b.prevFrom, b.prevTo);
+  const acc = accuracy(games), prevAcc = accuracy(prevGames);
+  const rated = games.filter(g => g.rated);
+  return {
+    period: { days, from: b.from, to: b.to },
+    results: { ...tally(games), rated: rated.length, unrated: games.length - rated.length, streaks: streaks(games),
+               byColor: groupTally(games, 'user_color'), byTimeControl: groupTally(games, 'time_control'),
+               byOpponent: groupTally(games, 'ai_offset'), byTermination: groupTally(games, 'termination'),
+               avgMoves: avg(games.map(g => Math.ceil(g.move_count / 2))), avgDurationS: avg(games.filter(g => g.duration_s).map(g => g.duration_s)) },
+    accuracy: acc,
+    errors: errorsByCategory(userId, b.from, b.to),
+    puzzles,
+    elo: { start: elo.start, end: elo.end, delta: elo.delta, peak: elo.peak, low: elo.low },
+    activity: activity(userId, games, b.from, b.to),
+    comparison: days === null ? null : {
+      previous: { from: b.prevFrom, to: b.prevTo },
+      games: { now: games.length, before: prevGames.length },
+      winRate: { now: tally(games).winRate, before: tally(prevGames).winRate },
+      score: { now: tally(games).score, before: tally(prevGames).score },
+      accuracy: { now: acc.accuracy, before: prevAcc.accuracy },
+      blundersPerGame: { now: acc.perGame.blunders, before: prevAcc.perGame.blunders },
+      eloDelta: { now: elo.delta, before: prevElo.delta },
+      puzzleRate: { now: puzzles.rate, before: prevPuzzles.rate },
+      puzzlesSolved: { now: puzzles.solved, before: prevPuzzles.solved },
+    },
+  };
+}
+
+export function progression(userId, days = 30, now = Date.now()) {
+  const b = bounds(days, now);
+  const games = finishedGames(userId, b.from, b.to);
+  const analysed = games.filter(g => g.accuracy_user !== null && g.accuracy_user !== undefined);
+  return {
+    period: { days, from: b.from, to: b.to },
+    elo: eloCurve(userId, b.from, b.to),
+    games: analysed.map(g => ({ id: g.id, t: g.finished_at, accuracy: g.accuracy_user, acpl: g.acpl_user, inaccuracies: g.inaccuracies || 0,
+                                mistakes: g.mistakes || 0, blunders: g.blunders || 0, score: g.user_score, ai_elo: g.ai_elo })),
+    weaknesses: weaknessHistory(userId, b.from, b.to),
+    themes: themeRatings(userId),
+    activity: activity(userId, games, b.from, b.to),
+  };
+}

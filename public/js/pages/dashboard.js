@@ -25,7 +25,7 @@ export async function render(main) {
       <div class="card stat">
         <span class="label">Elo actuel ${elo.provisional ? html`<span class="badge badge-amber">provisoire</span>` : html`<span class="badge">confirmé</span>`}</span>
         <span class="value elo">${elo.current}</span>
-        <span class="sub">7 jours : ${formatDelta(elo.delta7d)} · 30 jours : ${formatDelta(elo.delta30d)}</span>
+        <span class="sub">7 jours : ${formatDelta(elo.delta7d)} · 30 jours : ${formatDelta(elo.delta30d)} · <a href="#/progression">courbe</a></span>
       </div>
       <div class="card stat">
         <span class="label">Meilleur Elo</span>

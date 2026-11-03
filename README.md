@@ -32,8 +32,8 @@ server/
   db.js             SQLite (better-sqlite3) + exécution des migrations
   migrations/       schéma, migrations ADDITIVES uniquement (jamais de DROP)
   middleware.js     requireAuth, publicUser
-  routes/           auth, profile, games, training, admin
-  services/         elo, games, analysis (évaluation des coups), puzzles (vérification des exercices), training (sélection, SRS, faiblesses)
+  routes/           auth, profile, games, training, stats, admin
+  services/         elo, games, analysis (évaluation des coups), puzzles (vérification des exercices), training (sélection, SRS, faiblesses), stats (agrégations progression/statistiques)
   puzzles/          library.json : bibliothèque d'exercices vérifiés par Stockfish
   engine/           stockfish (pool de processus UCI), ai (choix de coup par niveau Elo)
 public/
@@ -94,4 +94,5 @@ vérification, après chaque analyse.
 - [x] Phase 2 — IA adaptative « humaine » (erreurs plausibles, personnalité, ouverture, calibration)
 - [x] Phase 3 — analyse des parties (Stockfish, rapport, replay annoté, motifs d'erreur)
 - [x] Phase 4 — entraînement (bibliothèque vérifiée, exercices personnels, répétition espacée, faiblesses, programme du jour)
-- [ ] Phase 5 — graphiques, statistiques, programme personnalisé
+- [x] Phase 5 — progression (courbe Elo, précision, faiblesses, thèmes, activité) et statistiques (résultats, comparaisons, erreurs, exercices)
+- [ ] Phase 6 — mise en ligne (hébergement, e-mails, domaine, référencement)

@@ -33,6 +33,8 @@ const routes = [
   { path: /^\/historique$/,     page: 'history',   auth: true },
   { path: /^\/entrainement$/,   page: 'training',  auth: true },
   { path: /^\/exercice$/,       page: 'puzzle',    auth: true },
+  { path: /^\/progression$/,    page: 'progression', auth: true },
+  { path: /^\/statistiques$/,   page: 'statistics',  auth: true },
   { path: /^\/profil$/,         page: 'profile',   auth: true },
   { path: /^\/parametres$/,     page: 'settings',  auth: true },
 ];
@@ -41,9 +43,10 @@ const NAV = [
   { href: '#/tableau-de-bord', label: 'Tableau de bord', short: 'Accueil', icon: 'grid' },
   { href: '#/jouer',           label: 'Jouer',           icon: 'knight' },
   { href: '#/entrainement',    label: 'Entraînement',    short: 'Entraîner', icon: 'target' },
-  { href: '#/historique',      label: 'Historique',      icon: 'list' },
+  { href: '#/progression',     label: 'Progression',     icon: 'chart', match: /^\/(progression|statistiques)$/ },
+  { href: '#/historique',      label: 'Historique',      icon: 'list', mobile: false },
   { href: '#/profil',          label: 'Profil',          icon: 'user' },
-  { href: '#/parametres',      label: 'Paramètres',      icon: 'cog' },
+  { href: '#/parametres',      label: 'Paramètres',      icon: 'cog', mobile: false },
 ];
 
 const ICONS = {
@@ -52,6 +55,7 @@ const ICONS = {
   cog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   knight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 21h12M8 21v-2c0-2 1-3 2-4l-3-1c-1-.5-1.5-2-1-3l3-3c1-1 2-3 2-5l2 1c2 1 4 2 4 6 0 3-1 5-2 7v4"/></svg>',
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 17l5-5-5-5M15 12H3M21 3v18"/></svg>',
 };
@@ -70,7 +74,7 @@ function renderNav() {
   const path = currentPath();
   const u = state.user;
 
-  const links = (items, short = false) => items.map(i => html`<a href="${i.href}" class="${'#' + path === i.href ? 'active' : ''}">${raw(ICONS[i.icon])}<span>${short ? (i.short || i.label) : i.label}</span></a>`);
+  const links = (items, short = false) => items.filter(i => !short || i.mobile !== false).map(i => html`<a href="${i.href}" class="${(i.match ? i.match.test(path) : '#' + path === i.href) ? 'active' : ''}">${raw(ICONS[i.icon])}<span>${short ? (i.short || i.label) : i.label}</span></a>`);
 
   if (!u) {
     sidebar.innerHTML = html`
