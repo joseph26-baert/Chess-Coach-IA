@@ -54,7 +54,11 @@ function randomPosition() {
   try {
     const c = new Chess(fen);
     if (c.isCheck()) return null; // pas d'échec initial pour une finale « calme »
-    // Le camp au trait doit être celui qui a le matériel (sinon on inverse)
+    // Rois adjacents ou camp adverse en échec : position illégale, le moteur la refuse
+    const kings = c.board().flat().filter(q => q && q.type === 'k').map(q => q.square);
+    if (kings.length !== 2 || (Math.abs(kings[0].charCodeAt(0) - kings[1].charCodeAt(0)) <= 1 && Math.abs(Number(kings[0][1]) - Number(kings[1][1])) <= 1)) return null;
+    const flipped = fen.replace(` ${turn} `, ` ${turn === 'w' ? 'b' : 'w'} `);
+    if (new Chess(flipped).isCheck()) return null;
     return fen;
   } catch { return null; }
 }
@@ -64,7 +68,8 @@ while (countEnd() < TARGET) {
   const fen = randomPosition();
   if (!fen || keys.has(puzzleKey(fen))) continue;
   tried++;
-  const p = await verifyPuzzle(fen);
+  let p = null;
+  try { p = await verifyPuzzle(fen); } catch (e) { console.error('vérification impossible :', e.message); continue; }
   if (!p) continue;
   if (!p.themes.includes('endgame') && !p.themes.includes('promotion')) continue;
   keys.add(puzzleKey(fen));
