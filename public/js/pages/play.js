@@ -135,12 +135,31 @@ async function submitMove({ from, to, promotion }) {
   }
 }
 
-async function resign() {
-  if (!confirm('Abandonner cette partie ?')) return;
-  try {
-    const { game: g, user } = await api.post(`/games/${game.id}/resign`);
-    applyServerState(g, user);
-  } catch (err) { toast(err.message); }
+function resign() {
+  const modal = document.getElementById('end-modal');
+  if (!modal || game.status !== 'ongoing') return;
+  modal.hidden = false;
+  modal.innerHTML = html`
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="resign-title">
+      <div class="end-title" id="resign-title" style="font-size:1.5rem">Abandonner la partie&nbsp;?</div>
+      <p class="end-sub">${game.rated ? 'La partie sera comptée comme une défaite et votre Elo baissera.' : 'La partie sera comptée comme une défaite.'}</p>
+      <div class="end-actions">
+        <button class="btn btn-danger" id="resign-confirm">Oui, j'abandonne</button>
+        <button class="btn btn-ghost" id="resign-cancel">Continuer la partie</button>
+      </div>
+    </div>`;
+  const close = () => { modal.hidden = true; modal.innerHTML = ''; };
+  modal.querySelector('#resign-cancel').addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); }, { once: true });
+  modal.querySelector('#resign-confirm').addEventListener('click', async (e) => {
+    e.target.disabled = true;
+    try {
+      const { game: g, user } = await api.post(`/games/${game.id}/resign`);
+      close();
+      applyServerState(g, user);
+    } catch (err) { toast(err.message); close(); }
+  });
+  modal.querySelector('#resign-cancel').focus();
 }
 
 function applyServerState(g, user) {

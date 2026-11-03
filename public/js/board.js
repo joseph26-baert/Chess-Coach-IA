@@ -13,6 +13,7 @@ const LAST_MOVE = { class: 'marker-last-move', slice: 'markerSquare' };
 const CHECK = { class: 'marker-check', slice: 'markerCircleFilled' };
 const THREAT = { class: 'marker-threat', slice: 'markerFrame' };
 const SELECTED = { class: 'marker-selected', slice: 'markerSquare' };
+const ILLEGAL = { class: 'marker-illegal', slice: 'markerSquare' };
 
 let cssLoaded = false;
 function ensureCss() {
@@ -64,7 +65,14 @@ export function createBoard(el, { fen = FEN.start, orientation = 'white', onMove
       }
       case INPUT_EVENT_TYPE.validateMoveInput: {
         const legal = chess.moves({ square: event.squareFrom, verbose: true }).filter(m => m.to === event.squareTo);
-        if (!legal.length) return false;
+        if (!legal.length) {
+          // Case non jouable : la pièce reste à sa place, la case visée clignote brièvement en rouge
+          if (event.squareTo && event.squareTo !== event.squareFrom && !chess.get(event.squareTo)?.color?.includes(playerColorChar())) {
+            board.addMarker(ILLEGAL, event.squareTo);
+            setTimeout(() => { try { board.removeMarkers(ILLEGAL, event.squareTo); } catch { /* échiquier détruit */ } }, 350);
+          }
+          return false;
+        }
         const needsPromotion = legal.some(m => m.promotion);
         board.removeLegalMovesMarkers();
         board.removeMarkers(SELECTED);

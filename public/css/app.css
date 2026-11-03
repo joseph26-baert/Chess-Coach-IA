@@ -231,6 +231,8 @@ p { margin: 0 0 1em; max-width: 62ch; }
 .cm-chessboard .marker-last-move { fill: #8FB0DC; opacity: .6; }
 .cm-chessboard .marker-selected { fill: #8FB0DC; opacity: .8; }
 .cm-chessboard .marker-check { fill: #D9705F; opacity: .75; }
+.cm-chessboard .marker-illegal { fill: #D9705F; opacity: .55; animation: fade-out .35s ease-out forwards; }
+@keyframes fade-out { to { opacity: 0; } }
 .cm-chessboard .marker-threat { stroke: #D9705F; stroke-width: 2.5px; opacity: .9; }
 .cm-chessboard .marker-dot { fill: #1E1E2A; opacity: .25; }
 .cm-chessboard .marker-bevel { stroke: #1E1E2A; opacity: .3; }
