@@ -379,3 +379,12 @@ p { margin: 0 0 1em; max-width: 62ch; }
 .score-delta { text-align: right; font-size: .85rem; }
 .term-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 @media (max-width: 600px) { .score-row { grid-template-columns: 1fr 90px 56px; } .score-row.score-row-wide { grid-template-columns: 1fr 80px 40px 44px; } .breakdown-row { grid-template-columns: 1fr 90px 64px; } .cmp-row { grid-template-columns: 1.2fr 1fr 1fr 1fr; font-size: .9rem; } }
+
+.delete-form { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.delete-form label { display: flex; flex-direction: column; gap: 6px; font-size: .9rem; color: var(--text-2); }
+.btn-danger { background: var(--loss); color: #fff; }
+.btn-danger:hover { filter: brightness(.92); }
+.legal { max-width: 70ch; }
+.legal h2 { font-size: 1.15rem; margin-top: 28px; }
+.legal p, .legal li { color: var(--text-2); }
+.site-foot { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--text-3); font-size: .85rem; display: flex; gap: 16px; flex-wrap: wrap; }

@@ -4,7 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chess Coach IA</title>
-  <meta name="description" content="Entraîneur d'échecs personnel : jouez contre une IA qui joue comme un humain, suivez votre Elo et progressez.">
+  <meta name="description" content="Chess Coach IA : jouez aux échecs contre une IA qui joue comme un humain à votre niveau, suivez votre Elo, faites analyser vos parties et entraînez-vous sur vos vraies faiblesses. Gratuit, en français.">
+  <link rel="canonical" href="__BASE_URL__/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Chess Coach IA">
+  <meta property="og:title" content="Chess Coach IA — votre coach d'échecs personnel">
+  <meta property="og:description" content="Une IA qui joue comme un humain à votre niveau, un Elo qui vous suit, l'analyse de vos parties et un entraînement sur mesure.">
+  <meta property="og:url" content="__BASE_URL__/">
+  <meta property="og:locale" content="fr_FR">
+  <meta name="twitter:card" content="summary">
+  <meta name="theme-color" content="#16161D">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Chess Coach IA","url":"__BASE_URL__/","applicationCategory":"GameApplication","operatingSystem":"Web","inLanguage":"fr","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"description":"Coach d'échecs en ligne : IA au comportement humain, Elo évolutif, analyse des parties et entraînement personnalisé."}</script>
   <link rel="stylesheet" href="/vendor/fonts/montserrat/600.css">
   <link rel="stylesheet" href="/vendor/fonts/montserrat/700.css">
   <link rel="stylesheet" href="/vendor/fonts/inter/400.css">
@@ -16,7 +26,14 @@
 <body>
   <div id="app" class="app">
     <aside class="sidebar" id="sidebar"></aside>
-    <main class="main" id="main"><div class="loading">Chargement…</div></main>
+    <main class="main" id="main">
+      <!-- Contenu visible avant le chargement de l'application (et par les moteurs de recherche) -->
+      <section class="hero"><div>
+        <h1>Chess Coach IA : un adversaire qui joue comme vous, et un coach qui vous connaît.</h1>
+        <p class="lead">Jouez aux échecs contre une IA qui se trompe comme un humain, à votre niveau exact. Chaque partie fait évoluer votre Elo, est analysée par Stockfish, et nourrit un entraînement ciblé sur vos vraies faiblesses : tactique, calcul, finales, défense.</p>
+        <p class="lead">Gratuit, sans publicité, en français. <a href="#/inscription">Créer un compte</a> · <a href="#/connexion">Se connecter</a></p>
+      </div></section>
+    </main>
     <nav class="tabbar" id="tabbar"></nav>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

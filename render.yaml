@@ -1,0 +1,36 @@
+# Déploiement Render (plan gratuit) : https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: chess-coach-ia
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DATA_DIR
+        value: /data
+      - key: ENGINE_POOL
+        value: "1"
+      - key: ANALYSIS_DEPTH
+        value: "12"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: BASE_URL              # adresse publique du site, ex. https://chess-coach-ia.onrender.com
+        sync: false
+      - key: ADMIN_EMAILS          # adresses ayant accès aux statistiques d'usage
+        sync: false
+      - key: LITESTREAM_REPLICA_URL        # ex. s3://NOM-DU-BUCKET.s3.eu-central-003.backblazeb2.com/chess-coach
+        sync: false
+      - key: LITESTREAM_ACCESS_KEY_ID
+        sync: false
+      - key: LITESTREAM_SECRET_ACCESS_KEY
+        sync: false
+      - key: SMTP_URL              # ex. smtps://LOGIN:CLE@smtp-relay.brevo.com:465
+        sync: false
+      - key: MAIL_FROM             # ex. Chess Coach IA <adresse@exemple.fr>
+        sync: false

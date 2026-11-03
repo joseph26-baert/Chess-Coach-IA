@@ -84,10 +84,23 @@ app.use('/vendor/chart.js', express.static(path.join(ROOT, 'node_modules', 'char
 app.use('/vendor/chess.js', express.static(path.join(ROOT, 'node_modules', 'chess.js', 'dist', 'esm')));
 app.use('/vendor/fonts/montserrat', express.static(path.join(ROOT, 'node_modules', '@fontsource', 'montserrat'), { maxAge: '30d' }));
 app.use('/vendor/fonts/inter', express.static(path.join(ROOT, 'node_modules', '@fontsource', 'inter'), { maxAge: '30d' }));
-app.use(express.static(path.join(ROOT, 'public')));
+app.use(express.static(path.join(ROOT, 'public'), { index: false }));
 
-// Application monopage : toute route non-API renvoie index.html
-app.get('/{*splat}', (req, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
+// Surveillance (hébergeur) et référencement
+const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+app.get('/healthz', (req, res) => { db.prepare('SELECT 1').get(); res.json({ ok: true }); });
+app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${BASE_URL}/sitemap.xml\n`));
+app.get('/sitemap.xml', (req, res) => {
+  const pages = ['/', '/#/inscription', '/#/connexion', '/#/confidentialite'];
+  res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${pages.map(p => `  <url><loc>${BASE_URL}${p}</loc></url>`).join('\n')}\n</urlset>\n`);
+});
+
+// Application monopage : toute route non-API renvoie index.html (adresse publique injectée pour les balises canonical / Open Graph)
+const indexHtml = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+app.get('/{*splat}', (req, res) => {
+  if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Route inconnue.' });
+  res.type('html').send(indexHtml.replaceAll('__BASE_URL__', BASE_URL));
+});
 
 // Gestion d'erreurs
 app.use((err, req, res, next) => {

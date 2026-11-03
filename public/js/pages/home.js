@@ -56,5 +56,12 @@ export async function render(main) {
         <h3>Des exercices tirés de vos erreurs</h3>
         <p>Fourchettes manquées, mats ratés, finales mal jouées : l'analyse de vos parties décide de ce que vous travaillez ensuite.</p>
       </div>
-    </section>`;
+    </section>
+
+    <section class="features grid grid-3" style="margin-top:16px">
+      <div class="card"><h3>Analyse après chaque partie</h3><p>Précision, moments décisifs, gaffes et erreurs expliquées en français, avec le replay annoté coup par coup.</p></div>
+      <div class="card"><h3>Entraînement sur mesure</h3><p>Plus de 500 exercices tactiques vérifiés, des exercices tirés de vos propres parties, et une révision espacée de ce que vous avez raté.</p></div>
+      <div class="card"><h3>Progression visible</h3><p>Courbe Elo, précision, erreurs par catégorie, points forts et faiblesses : vos statistiques, sur 7 jours ou sur un an.</p></div>
+    </section>
+    <div class="site-foot"><span>Chess Coach IA — gratuit, sans publicité.</span><a href="#/confidentialite">Confidentialité</a></div>`;
 }

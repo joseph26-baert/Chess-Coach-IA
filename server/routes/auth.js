@@ -3,6 +3,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { db } from '../db.js';
+import { mailEnabled, sendMail, resetPasswordMail } from '../services/mail.js';
 import { publicUser, requireAuth } from '../middleware.js';
 import { STARTING_ELO } from '../services/elo.js';
 
@@ -75,7 +76,7 @@ router.post('/login', async (req, res) => {
   const key = `${req.ip}|${login.toLowerCase()}`;
   if (tooManyAttempts(key)) return res.status(429).json({ error: 'Trop de tentatives. Réessaie dans 15 minutes.' });
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ? OR username = ?').get(login, login);
+  const user = db.prepare('SELECT * FROM users WHERE (email = ? OR username = ?) AND deleted_at IS NULL').get(login, login);
   const ok = user && await bcrypt.compare(password, user.password_hash);
   if (!ok) {
     recordAttempt(key);
@@ -122,14 +123,14 @@ router.post('/change-password', requireAuth, async (req, res) => {
 
 // --- Réinitialisation : demande ----------------------------------------
 // Sans serveur SMTP configuré, le lien est journalisé côté serveur (et renvoyé
-// en mode développement) ; avec SMTP_URL défini, il sera envoyé par e-mail.
-router.post('/forgot', (req, res) => {
+// en mode développement) ; avec SMTP_URL défini, il est envoyé par e-mail.
+router.post('/forgot', async (req, res) => {
   const ipKey = `forgot|${req.ip}`;
   if (tooManyAttempts(ipKey)) return res.status(429).json({ error: 'Trop de demandes. Réessaie dans 15 minutes.' });
   recordAttempt(ipKey);
   db.prepare("DELETE FROM password_resets WHERE expires_at < ?").run(new Date().toISOString());
   const email = String(req.body.email || '').trim();
-  const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email);
+  const user = db.prepare('SELECT id, email FROM users WHERE email = ? AND deleted_at IS NULL').get(email);
   // Réponse identique que l'adresse existe ou non (pas de fuite d'information)
   const reply = { ok: true, message: 'Si un compte existe pour cette adresse, un lien de réinitialisation a été généré.' };
   if (!user) return res.json(reply);
@@ -142,8 +143,13 @@ router.post('/forgot', (req, res) => {
   // BASE_URL de configuration : on ne fait jamais confiance à l'en-tête Host pour un lien envoyé par e-mail
   const base = (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
   const link = `${base}/#/reset/${token}`;
-  console.log(`[auth] lien de réinitialisation pour ${user.email} : ${link}`);
-  if (process.env.NODE_ENV !== 'production') reply.devLink = link;
+  if (mailEnabled()) {
+    try { await sendMail({ to: user.email, ...resetPasswordMail(link) }); }
+    catch (e) { console.error('[auth] envoi de l\'e-mail impossible :', e.message); return res.status(502).json({ error: "L'e-mail n'a pas pu être envoyé. Réessaie dans quelques minutes." }); }
+  } else {
+    console.log(`[auth] lien de réinitialisation pour ${user.email} : ${link}`);
+    if (process.env.NODE_ENV !== 'production') reply.devLink = link;
+  }
   res.json(reply);
 });
 

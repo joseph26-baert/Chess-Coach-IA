@@ -1,5 +1,7 @@
 // Profil et paramètres utilisateur
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import { db } from '../db.js';
 import { publicUser, requireAuth } from '../middleware.js';
 
@@ -72,6 +74,20 @@ router.patch('/settings', (req, res) => {
   params.push(req.user.id);
   db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
   res.json({ user: publicUser(req.user.id) });
+});
+
+// Suppression du compte (RGPD) : anonymisation irréversible. L'historique de parties est conservé sans identité.
+router.post('/delete', async (req, res) => {
+  const password = String(req.body.password || '');
+  if (!(await bcrypt.compare(password, req.user.password_hash))) return res.status(400).json({ error: 'Mot de passe incorrect.' });
+  const id = req.user.id;
+  db.transaction(() => {
+    db.prepare(`UPDATE users SET email = ?, username = ?, password_hash = ?, deleted_at = ? WHERE id = ?`)
+      .run(`supprime-${id}@invalide.local`, `supprime-${id}`, crypto.randomBytes(32).toString('hex'), new Date().toISOString(), id);
+    db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(id);
+    db.prepare("DELETE FROM sessions WHERE json_extract(sess, '$.userId') = ?").run(id);
+  })();
+  req.session.destroy(() => res.json({ ok: true }));
 });
 
 export default router;

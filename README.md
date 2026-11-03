@@ -23,6 +23,10 @@ Variables d'environnement (toutes optionnelles) :
 | `TRUST_PROXY`    | À définir (`1`) derrière un reverse proxy       | —                       |
 | `ENGINE_POOL`    | Nombre de processus Stockfish                   | `2`                     |
 | `ADMIN_EMAILS`   | Adresses (séparées par des virgules) ayant accès aux statistiques d'usage | — |
+| `SMTP_URL`       | Serveur d'envoi des e-mails (`smtps://login:cle@smtp-relay.brevo.com:465`) ; absent = lien journalisé | — |
+| `MAIL_FROM`      | Expéditeur des e-mails                          | —                       |
+| `ANALYSIS_DEPTH` | Profondeur Stockfish pour l'analyse des parties | `14`                    |
+| `LITESTREAM_REPLICA_URL` | Sauvegarde continue de la base (S3/Backblaze), voir Déploiement | — |
 
 ## Architecture
 
@@ -86,6 +90,20 @@ prises gratuites manqués. La profondeur est un levier très brutal : elle reste
 les vérifie à profondeur 16 (solution unique, gain net ou mat complet). `REVERIFY=1` repasse les exercices
 existants avec les règles courantes. Les exercices personnels (tirés des parties du joueur) suivent la même
 vérification, après chaque analyse.
+
+## Déploiement
+
+Le dépôt contient un `Dockerfile` et un `render.yaml` (Render, plan gratuit, région Francfort). La base SQLite
+vit sur le disque du conteneur ; comme ce disque est effacé à chaque redémarrage sur le plan gratuit,
+`scripts/start.sh` utilise **Litestream** : au démarrage la base est restaurée depuis la sauvegarde
+(Backblaze B2, compatible S3), puis chaque écriture est répliquée en continu (délai ≈ 1 s).
+
+Variables à définir chez l'hébergeur : `BASE_URL`, `SESSION_SECRET`, `ADMIN_EMAILS`, `LITESTREAM_REPLICA_URL`
+(`s3://NOM-DU-BUCKET.s3.eu-central-003.backblazeb2.com/chess-coach`), `LITESTREAM_ACCESS_KEY_ID`,
+`LITESTREAM_SECRET_ACCESS_KEY`, `SMTP_URL`, `MAIL_FROM`. Santé : `GET /healthz`.
+
+Référencement : `robots.txt`, `sitemap.xml`, balises canonical/Open Graph et contenu de la page d'accueil
+servis avec `BASE_URL` ; page `#/confidentialite` ; suppression de compte par anonymisation (`POST /api/profile/delete`).
 
 ## Avancement
 

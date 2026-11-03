@@ -62,9 +62,24 @@ export async function render(main) {
         <div><div>Session</div><div class="desc">Connecté en tant que ${u.email}.</div></div>
         <button class="btn btn-ghost" id="settings-logout" type="button">Se déconnecter</button>
       </div>
+      <div class="settings-row" style="margin-top:12px">
+        <div><div>Supprimer mon compte</div><div class="desc">Irréversible : votre identité est effacée (e-mail, nom, mot de passe). Vos parties restent dans les statistiques anonymes du site. <a href="#/confidentialite">Politique de confidentialité</a>.</div></div>
+        <button class="btn btn-ghost" id="settings-delete" type="button">Supprimer…</button>
+      </div>
+      <form id="delete-form" class="delete-form" hidden novalidate>
+        <label>Pour confirmer, saisissez votre mot de passe<input class="input" type="password" name="password" autocomplete="current-password" required></label>
+        <button class="btn btn-danger" type="submit">Supprimer définitivement mon compte</button>
+      </form>
     </div>`;
 
   main.querySelector('#settings-logout').addEventListener('click', logout);
+  main.querySelector('#settings-delete').addEventListener('click', () => { const f = main.querySelector('#delete-form'); f.hidden = !f.hidden; if (!f.hidden) f.password.focus(); });
+  bindForm(main.querySelector('#delete-form'), async (data) => {
+    await api.post('/profile/delete', { password: data.password });
+    setUser(null);
+    toast('Compte supprimé. Merci d\'avoir joué avec nous.');
+    location.hash = '#/';
+  });
 
   if (u.is_admin) {
     const card = document.createElement('div');

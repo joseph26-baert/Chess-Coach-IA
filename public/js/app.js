@@ -27,6 +27,7 @@ const routes = [
   { path: /^\/connexion$/,      page: 'login',     auth: false, guestOnly: true },
   { path: /^\/mot-de-passe$/,   page: 'forgot',    auth: false },
   { path: /^\/reset\/(\w+)$/,   page: 'reset',     auth: false },
+  { path: /^\/confidentialite$/, page: 'privacy',  auth: false },
   { path: /^\/tableau-de-bord$/,page: 'dashboard', auth: true },
   { path: /^\/jouer$/,          page: 'play',      auth: true },
   { path: /^\/partie\/(\d+)$/,  page: 'game',      auth: true },
