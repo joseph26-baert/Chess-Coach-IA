@@ -58,6 +58,19 @@ export async function render(main) {
     </div>
 
     <div class="card settings-section" style="margin-top:16px">
+      <h3>Exporter mes données</h3>
+      <p class="setup-hint">Fichiers CSV (s'ouvrent dans Excel ou Numbers) : utiles pour un travail ou une analyse personnelle.</p>
+      <div class="export-list">
+        <a class="btn btn-sm" href="/api/export/parties" download>Parties</a>
+        <a class="btn btn-sm" href="/api/export/elo" download>Historique Elo</a>
+        <a class="btn btn-sm" href="/api/export/erreurs" download>Erreurs</a>
+        <a class="btn btn-sm" href="/api/export/exercices" download>Exercices</a>
+        <a class="btn btn-sm" href="/api/export/faiblesses" download>Faiblesses</a>
+        <a class="btn btn-sm" href="/api/export/journal" download>Journal</a>
+      </div>
+    </div>
+
+    <div class="card settings-section" style="margin-top:16px">
       <div class="settings-row">
         <div><div>Session</div><div class="desc">Connecté en tant que ${u.email}.</div></div>
         <button class="btn btn-ghost" id="settings-logout" type="button">Se déconnecter</button>

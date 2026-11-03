@@ -202,6 +202,20 @@ function errorsByCategory(userId, from, to) {
   return Object.values(out).sort((a, b) => b.total - a.total);
 }
 
+// Journal d'entraînement : activités (regroupées par jour) et relevés d'Elo externes dans la période
+function journalEvents(userId, from, to) {
+  const rows = db.prepare(`SELECT id, kind, title, minutes, rating, platform, happened_on FROM training_log
+                           WHERE user_id = ? AND deleted_at IS NULL AND (? IS NULL OR happened_on >= substr(?, 1, 10)) AND happened_on <= substr(?, 1, 10)
+                           ORDER BY happened_on, id`).all(userId, from, from, to);
+  const byDay = {};
+  for (const r of rows) if (r.kind !== 'rating') (byDay[r.happened_on] ||= []).push(r);
+  return {
+    activities: Object.entries(byDay).map(([day, items]) => ({ day, minutes: items.reduce((s, i) => s + (i.minutes || 0), 0), items: items.map(i => ({ id: i.id, kind: i.kind, title: i.title, minutes: i.minutes })) })),
+    ratings: rows.filter(r => r.kind === 'rating').map(r => ({ day: r.happened_on, rating: r.rating, platform: r.platform })),
+    totalMinutes: rows.reduce((s, r) => s + (r.minutes || 0), 0),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Points d'entrée
 
@@ -250,6 +264,7 @@ export function progression(userId, days = 30, now = Date.now()) {
                                 mistakes: g.mistakes || 0, blunders: g.blunders || 0, score: g.user_score, ai_elo: g.ai_elo })),
     summary: { ...tally(games), analysed: analysed.length, accuracy: avg(analysed.map(g => g.accuracy_user)), puzzles: puzzleStats(userId, b.from, b.to) },
     weaknesses: weaknessHistory(userId, b.from, b.to),
+    journal: journalEvents(userId, b.from, b.to),
     themes: themeRatings(userId),
     activity: activity(userId, games, b.from, b.to),
   };

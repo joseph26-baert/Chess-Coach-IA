@@ -16,6 +16,8 @@ import { recoverQueue } from './services/analysis.js';
 import trainingRoutes from './routes/training.js';
 import adminRoutes from './routes/admin.js';
 import statsRoutes from './routes/stats.js';
+import journalRoutes from './routes/journal.js';
+import exportRoutes from './routes/export.js';
 import { loadLibrary } from './services/training.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -75,6 +77,8 @@ app.use('/api/games', gamesRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/journal', journalRoutes);
+app.use('/api/export', exportRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 

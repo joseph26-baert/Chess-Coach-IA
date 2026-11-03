@@ -36,6 +36,7 @@ const routes = [
   { path: /^\/exercice$/,       page: 'puzzle',    auth: true },
   { path: /^\/progression$/,    page: 'progression', auth: true },
   { path: /^\/statistiques$/,   page: 'statistics',  auth: true },
+  { path: /^\/journal$/,        page: 'journal',     auth: true },
   { path: /^\/profil$/,         page: 'profile',   auth: true },
   { path: /^\/parametres$/,     page: 'settings',  auth: true },
 ];
@@ -45,6 +46,7 @@ const NAV = [
   { href: '#/jouer',           label: 'Jouer',           icon: 'knight' },
   { href: '#/entrainement',    label: 'Entraînement',    short: 'Entraîner', icon: 'target' },
   { href: '#/progression',     label: 'Progression',     icon: 'chart', match: /^\/(progression|statistiques)$/ },
+  { href: '#/journal',         label: 'Journal',         icon: 'book', mobile: false },
   { href: '#/historique',      label: 'Historique',      icon: 'list', mobile: false },
   { href: '#/profil',          label: 'Profil',          icon: 'user' },
   { href: '#/parametres',      label: 'Paramètres',      icon: 'cog', mobile: false },
@@ -57,6 +59,7 @@ const ICONS = {
   knight: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 21h12M8 21v-2c0-2 1-3 2-4l-3-1c-1-.5-1.5-2-1-3l3-3c1-1 2-3 2-5l2 1c2 1 4 2 4 6 0 3-1 5-2 7v4"/></svg>',
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
   chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h6a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H4zM20 4h-6a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h7z"/></svg>',
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 17l5-5-5-5M15 12H3M21 3v18"/></svg>',
 };

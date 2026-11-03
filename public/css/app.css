@@ -393,3 +393,14 @@ p { margin: 0 0 1em; max-width: 62ch; }
 
 /* Échiquier verrouillé (pas au joueur de jouer, ou replay) : les pièces ne réagissent à aucun geste */
 .board-locked .cm-chessboard .pieces, .board-locked .cm-chessboard .board { pointer-events: none; }
+
+/* ----- Journal d'entraînement ----- */
+#journal-form label { display: flex; flex-direction: column; gap: 6px; font-size: .9rem; color: var(--text-2); margin-bottom: 12px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.journal-row { display: grid; grid-template-columns: 90px auto 1fr auto auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.journal-row:first-child { border-top: 0; }
+.journal-date { color: var(--text-3); font-size: .85rem; white-space: nowrap; }
+.journal-row .tag { background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+.journal-val { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-2); }
+@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } .journal-row { grid-template-columns: 1fr auto; } .journal-title { grid-column: 1 / -1; } }
+.export-list { display: flex; gap: 8px; flex-wrap: wrap; }

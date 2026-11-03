@@ -113,4 +113,5 @@ servis avec `BASE_URL` ; page `#/confidentialite` ; suppression de compte par an
 - [x] Phase 3 — analyse des parties (Stockfish, rapport, replay annoté, motifs d'erreur)
 - [x] Phase 4 — entraînement (bibliothèque vérifiée, exercices personnels, répétition espacée, faiblesses, programme du jour)
 - [x] Phase 5 — progression (courbe Elo, précision, faiblesses, thèmes, activité) et statistiques (résultats, comparaisons, erreurs, exercices)
-- [ ] Phase 6 — mise en ligne (hébergement, e-mails, domaine, référencement)
+- [x] Phase 5b — journal d'entraînement (activités hors site, Elo externes, affichés sur les courbes) et export CSV
+- [ ] Phase 6 — mise en ligne (hébergement, e-mails, domaine, référencement) : en cours (Render + GitHub faits, sauvegarde Backblaze à configurer)

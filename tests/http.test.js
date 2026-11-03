@@ -75,3 +75,35 @@ test('réinitialisation : lien journalisé sans SMTP, e-mail envoyé avec un tra
   assert.equal(mail.mailEnabled(), false);
   assert.deepEqual(await mail.sendMail({ to: 'x', subject: 's', text: 't' }), { sent: false });
 });
+
+test('journal : ajout, validation, modification, suppression logique, cloisonnement ; export CSV', async () => {
+  const c = client();
+  await c('POST', '/api/auth/register', { email: 'jour@t.l', username: 'journal', password: 'motdepasse1' });
+  assert.equal((await c('POST', '/api/journal', { kind: 'book', title: '', happened_on: '2026-11-01' })).status, 400);
+  assert.equal((await c('POST', '/api/journal', { kind: 'book', title: 'x', happened_on: '2099-01-01' })).status, 400);
+  assert.equal((await c('POST', '/api/journal', { kind: 'rating', title: 'chess.com', happened_on: '2026-11-01', rating: 50 })).status, 400);
+  const a = await c('POST', '/api/journal', { kind: 'lesson', title: 'Cours club', minutes: 90, happened_on: '2026-11-01', note: 'finales de tours' });
+  assert.equal(a.status, 201); assert.equal(a.json.entry.minutes, 90);
+  const r = await c('POST', '/api/journal', { kind: 'rating', title: 'Elo chess.com', rating: 1150, platform: 'chess.com', happened_on: '2026-11-02' });
+  assert.equal(r.status, 201); assert.equal(r.json.entry.rating, 1150); assert.equal(r.json.entry.minutes, null);
+  const up = await c('PATCH', `/api/journal/${a.json.entry.id}`, { minutes: 120 });
+  assert.equal(up.status, 200); assert.equal(up.json.entry.minutes, 120); assert.equal(up.json.entry.title, 'Cours club');
+  const list = await c('GET', '/api/journal');
+  assert.equal(list.json.entries.length, 2);
+  assert.equal(list.json.totals.find(t => t.kind === 'lesson').minutes, 120);
+  const prog = await c('GET', '/api/stats/progression?period=all');
+  assert.equal(prog.json.journal.activities.length, 1);
+  assert.equal(prog.json.journal.ratings[0].rating, 1150);
+  const csvJ = await c('GET', '/api/export/journal');
+  assert.match(csvJ.type, /text\/csv/); assert.match(csvJ.text, /Cours club;120/); assert.match(csvJ.text, /finales de tours/);
+  for (const name of ['parties', 'elo', 'erreurs', 'exercices', 'faiblesses']) assert.equal((await c('GET', `/api/export/${name}`)).status, 200, name);
+  assert.equal((await c('GET', '/api/export/inconnu')).status, 404);
+  assert.equal((await c('DELETE', `/api/journal/${a.json.entry.id}`)).status, 200);
+  assert.equal((await c('GET', '/api/journal')).json.entries.length, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM training_log WHERE deleted_at IS NOT NULL').get().n, 1); // jamais effacé
+  // un autre compte ne voit rien et ne peut rien supprimer
+  const o = client();
+  await o('POST', '/api/auth/register', { email: 'autre@t.l', username: 'autrej', password: 'motdepasse1' });
+  assert.equal((await o('GET', '/api/journal')).json.entries.length, 0);
+  assert.equal((await o('DELETE', `/api/journal/${r.json.entry.id}`)).status, 404);
+});

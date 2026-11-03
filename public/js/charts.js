@@ -53,7 +53,7 @@ function baseOptions(c, { yMin, yMax, yTicks, xTicks, suggestedMax, stacked, leg
 }
 
 // Courbe (Elo, précision…) : ligne 2 px, points visibles seulement au survol, aire légère
-export async function lineChart(canvas, { labels, series, yMin, yMax, suggestedMax, yTicks, legend, tooltipTitle, tooltipLabel, fill = true, onClick }) {
+export async function lineChart(canvas, { labels, series, yMin, yMax, suggestedMax, yTicks, legend, tooltipTitle, tooltipLabel, fill = true, onClick, plugins = [] }) {
   const Chart = await loadChartJs();
   const c = themeColors();
   const opts = baseOptions(c, { yMin, yMax, suggestedMax, yTicks, legend });
@@ -65,6 +65,7 @@ export async function lineChart(canvas, { labels, series, yMin, yMax, suggestedM
       fill: fill && series.length === 1 ? 'origin' : false, borderWidth: 2, pointRadius: s.points ?? (s.data.length > 60 ? 0 : 2.5), pointHoverRadius: 5, pointBackgroundColor: s.color,
       pointBorderColor: c.surface, pointBorderWidth: 1.5, tension: 0.25, spanGaps: true, stepped: s.stepped || false })) },
     options: opts,
+    plugins,
   });
 }
 

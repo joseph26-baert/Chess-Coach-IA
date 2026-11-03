@@ -7,6 +7,7 @@ import { header, tile, currentPeriod, periodLabel, n, delta, emptyCard } from '.
 
 let charts = [];
 let mountGen = 0;
+const fmtH = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${String(m % 60).padStart(2, '0')}` : ''}` : `${m} min`);
 export function unmount() { mountGen++; for (const c of charts) c.destroy(); charts = []; }
 
 export async function render(main) {
@@ -43,6 +44,12 @@ export async function render(main) {
     <div class="card chart-card" style="margin-top:16px">
       <div class="chart-head"><h3>Courbe Elo</h3><span class="setup-hint">Un point par partie classée · cliquez pour ouvrir la partie</span></div>
       ${elo.points.length > 1 ? html`<div class="chart chart-tall"><canvas id="elo-chart"></canvas></div>` : html`<div class="empty">Jouez une partie classée : la courbe apparaîtra ici.</div>`}
+      ${p.journal.activities.length || p.journal.ratings.length ? html`
+        <div class="legend-row journal-legend">
+          ${p.journal.activities.length ? html`<span><i class="sw" style="background:var(--chart-2)"></i>${p.journal.activities.length} jour${p.journal.activities.length > 1 ? 's' : ''} d'entraînement hors site (${fmtH(p.journal.totalMinutes)})</span>` : ''}
+          ${p.journal.ratings.length ? html`<span><i class="sw" style="background:var(--surface);box-shadow:inset 0 0 0 2px var(--loss)"></i>Elo externe relevé (${[...new Set(p.journal.ratings.map(r => r.platform))].join(', ')})</span>` : ''}
+          <a href="#/journal">Journal</a>
+        </div>` : html`<p class="setup-hint" style="margin:8px 0 0">Cours, livres, tournois… notez-les dans le <a href="#/journal">journal d'entraînement</a> : ils apparaîtront sur cette courbe.</p>`}
     </div>
 
     <div class="grid grid-2" style="margin-top:16px">
@@ -85,12 +92,45 @@ export async function render(main) {
   // --- Courbe Elo
   if (elo.points.length > 1) {
     const pts = elo.points;
+    // Position horizontale (fractionnaire, entre deux points) d'une date du journal, par interpolation temporelle
+    const times = pts.map(x => Date.parse(x.t));
+    const xOf = (day) => {
+      const t = Date.parse(day + 'T12:00:00Z');
+      if (t <= times[0]) return 0;
+      if (t >= times[times.length - 1]) return times.length - 1;
+      let i = 1; while (times[i] < t) i++;
+      return i - 1 + (t - times[i - 1]) / Math.max(1, times[i] - times[i - 1]);
+    };
+    const journalPlugin = {
+      id: 'journal',
+      afterDatasetsDraw(chart) {
+        const { ctx, scales: { x, y }, chartArea } = chart;
+        ctx.save();
+        for (const a of p.journal.activities) {
+          const px = x.getPixelForValue(xOf(a.day));
+          ctx.strokeStyle = withAlpha(c.chart2, .55); ctx.setLineDash([3, 4]); ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(px, chartArea.top); ctx.lineTo(px, chartArea.bottom); ctx.stroke();
+          ctx.setLineDash([]); ctx.fillStyle = c.chart2;
+          ctx.beginPath(); ctx.arc(px, chartArea.top + 5, 3.5, 0, Math.PI * 2); ctx.fill();
+        }
+        for (const r of p.journal.ratings) {
+          if (r.rating < y.min || r.rating > y.max) continue;
+          const px = x.getPixelForValue(xOf(r.day)), py = y.getPixelForValue(r.rating);
+          ctx.fillStyle = c.surface; ctx.strokeStyle = c.loss; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        }
+        ctx.restore();
+      },
+    };
+    const ratingsIn = p.journal.ratings.map(r => r.rating);
     if (!keep(await lineChart(main.querySelector('#elo-chart'), {
       labels: pts.map(x => shortDate(x.t)),
       series: [{ label: 'Elo', data: pts.map(x => x.elo), color: c.amber, points: pts.length > 80 ? 0 : 3 }],
+      yMin: ratingsIn.length ? Math.floor((Math.min(elo.low, ...ratingsIn) - 20) / 50) * 50 : undefined, yMax: ratingsIn.length ? Math.ceil((Math.max(elo.peak, ...ratingsIn) + 20) / 50) * 50 : undefined,
       tooltipTitle: (items) => longDate(pts[items[0].dataIndex].t),
       tooltipLabel: (it) => { const x = pts[it.dataIndex]; return x.game_id ? ` ${x.elo} Elo (${x.delta > 0 ? '+' : ''}${x.delta})${x.provisional ? ' · provisoire' : ''}` : ` ${x.elo} Elo au début de la période`; },
       onClick: (i) => { if (pts[i].game_id) location.hash = `#/partie/${pts[i].game_id}`; },
+      plugins: [journalPlugin],
     }))) return;
   }
 
