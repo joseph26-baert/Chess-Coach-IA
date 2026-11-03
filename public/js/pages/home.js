@@ -12,16 +12,15 @@ const POSITION = [
   'PP...PBP',
   'R..Q.RK.',
 ];
-const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
-
+// Mêmes pièces que sur l'échiquier de jeu (sprite SVG /pieces/coach.svg)
 function board() {
   let cells = '';
   POSITION.forEach((row, r) => {
     [...row].forEach((ch, c) => {
       const light = (r + c) % 2 === 0;
-      const white = ch !== '.' && ch === ch.toUpperCase();
       const hl = (r === 3 && c === 5) ? ' hl' : '';
-      cells += `<div class="${light ? 'l' : 'd'}${white ? ' w' : ''}${hl}">${ch === '.' ? '' : GLYPH[ch.toLowerCase()]}</div>`;
+      const piece = ch === '.' ? '' : `<svg viewBox="0 0 40 40" aria-hidden="true"><use href="/pieces/coach.svg#${ch === ch.toUpperCase() ? 'w' : 'b'}${ch.toLowerCase()}"/></svg>`;
+      cells += `<div class="${light ? 'l' : 'd'}${hl}">${piece}</div>`;
     });
   });
   return raw(cells);
