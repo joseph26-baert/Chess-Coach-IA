@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
 FROM node:22-bookworm-slim
 ENV NODE_ENV=production
 WORKDIR /app
+# Certificats racine : indispensables à Litestream pour la connexion HTTPS vers le stockage de sauvegarde
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=litestream/litestream:0.3.13 /usr/local/bin/litestream /usr/local/bin/litestream
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
