@@ -53,7 +53,7 @@ export function createBoard(el, { fen = FEN.start, orientation = 'white', onMove
 
   function playerColorChar() { return inputColor === 'white' ? 'w' : 'b'; }
 
-  async function inputHandler(event) {
+  function inputHandler(event) {
     switch (event.type) {
       case INPUT_EVENT_TYPE.moveInputStarted: {
         const piece = chess.get(event.squareFrom);
