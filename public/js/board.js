@@ -37,6 +37,7 @@ function ensureCss() {
 export function createBoard(el, { fen = FEN.start, orientation = 'white', onMove = null } = {}) {
   ensureCss();
   const chess = new Chess(fen);
+  el.classList.add('board-locked');
   const board = new Chessboard(el, {
     position: fen,
     orientation: orientation === 'white' ? COLOR.white : COLOR.black,
@@ -122,6 +123,7 @@ export function createBoard(el, { fen = FEN.start, orientation = 'white', onMove
     },
     enableInput(color) {
       if (inputEnabled) board.disableMoveInput();
+      el.classList.remove('board-locked');
       inputColor = color;
       board.enableMoveInput(inputHandler, color === 'white' ? COLOR.white : COLOR.black);
       inputEnabled = true;
@@ -129,6 +131,7 @@ export function createBoard(el, { fen = FEN.start, orientation = 'white', onMove
     },
     disableInput() {
       inputColor = null;
+      el.classList.add('board-locked'); // aucun toucher accepté tant que ce n'est pas au joueur
       if (inputEnabled) board.disableMoveInput();
       inputEnabled = false;
       board.removeLegalMovesMarkers();

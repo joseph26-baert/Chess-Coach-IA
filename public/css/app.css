@@ -388,3 +388,6 @@ p { margin: 0 0 1em; max-width: 62ch; }
 .legal h2 { font-size: 1.15rem; margin-top: 28px; }
 .legal p, .legal li { color: var(--text-2); }
 .site-foot { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--text-3); font-size: .85rem; display: flex; gap: 16px; flex-wrap: wrap; }
+
+/* Échiquier verrouillé (pas au joueur de jouer, ou replay) : les pièces ne réagissent à aucun geste */
+.board-locked .cm-chessboard .pieces, .board-locked .cm-chessboard .board { pointer-events: none; }
