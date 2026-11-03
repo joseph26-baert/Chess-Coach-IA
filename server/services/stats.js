@@ -10,7 +10,7 @@ export const PERIODS = { '7': 7, '30': 30, '90': 90, '365': 365, all: null };
 
 export function periodDays(raw) {
   const key = String(raw ?? '30');
-  if (!(key in PERIODS)) return undefined;
+  if (!Object.hasOwn(PERIODS, key)) return undefined;
   return PERIODS[key];
 }
 
@@ -60,7 +60,7 @@ function accuracy(games) {
   return {
     analysed: analysed.length,
     accuracy: avg(analysed.map(g => g.accuracy_user)),
-    acpl: avg(analysed.map(g => g.acpl_user)),
+    acpl: avg(analysed.filter(g => g.acpl_user !== null && g.acpl_user !== undefined).map(g => g.acpl_user)),
     perGame: {
       inaccuracies: avg(analysed.map(g => g.inaccuracies || 0)),
       mistakes: avg(analysed.map(g => g.mistakes || 0)),
@@ -86,17 +86,16 @@ function streaks(games) {
 // Elo
 
 function eloCurve(userId, from, to) {
-  const rows = db.prepare(`SELECT game_id, elo_before, elo_after, delta, provisional, reason, created_at FROM rating_history
-                           WHERE user_id = ? AND created_at < ? ORDER BY created_at ASC, id ASC`).all(userId, to);
-  if (!rows.length) return { points: [], start: null, end: null, delta: 0, peak: null, low: null };
-  // Point de départ : Elo juste avant la période (dernière valeur connue), ou l'initialisation
-  const inPeriod = from ? rows.filter(r => r.created_at >= from) : rows;
-  const before = from ? rows.filter(r => r.created_at < from) : [];
-  const startElo = before.length ? before[before.length - 1].elo_after : rows[0].elo_before;
-  const startAt = from ?? rows[0].created_at;
+  const inPeriod = db.prepare(`SELECT game_id, elo_before, elo_after, delta, provisional, reason, created_at FROM rating_history
+                               WHERE user_id = ? AND (? IS NULL OR created_at >= ?) AND created_at < ? ORDER BY created_at ASC, id ASC`).all(userId, from, from, to);
+  // Point de départ : dernière valeur connue avant la période, sinon l'initialisation du compte
+  const before = from ? db.prepare(`SELECT elo_after, provisional FROM rating_history WHERE user_id = ? AND created_at < ? ORDER BY created_at DESC, id DESC LIMIT 1`).get(userId, from) : null;
+  if (!inPeriod.length && !before) return { points: [], start: null, end: null, delta: 0, peak: null, low: null };
+  const startElo = before ? before.elo_after : inPeriod[0].elo_before;
+  const startAt = from ?? inPeriod[0].created_at;
   const points = [];
   // Point de départ synthétique, sauf si la période commence par la ligne d'initialisation du compte
-  if (!(inPeriod[0]?.reason === 'init' && !before.length)) points.push({ t: startAt, elo: startElo, game_id: null, provisional: before.length ? before[before.length - 1].provisional : 1 });
+  if (!(inPeriod[0]?.reason === 'init' && !before)) points.push({ t: startAt, elo: startElo, game_id: null, provisional: before ? before.provisional : 1 });
   for (const r of inPeriod) points.push({ t: r.created_at, elo: r.elo_after, delta: r.delta, game_id: r.game_id, provisional: r.provisional });
   const elos = points.map(p => p.elo);
   return { points, start: startElo, end: elos[elos.length - 1], delta: elos[elos.length - 1] - startElo, peak: Math.max(...elos), low: Math.min(...elos) };
@@ -143,7 +142,7 @@ function weeklyBuckets(from, to, weeks = 12) {
   const keys = [];
   let d = new Date(end + 'T00:00:00Z');
   const first = from ? weekStart(from) : null;
-  for (let i = 0; i < 52; i++) {
+  for (let i = 0; i < 160; i++) {
     const k = d.toISOString().slice(0, 10);
     if (first && k < first) break;
     keys.unshift(k);
@@ -153,8 +152,17 @@ function weeklyBuckets(from, to, weeks = 12) {
   return keys;
 }
 
+// Période « tout » : de la première partie (ou tentative) à aujourd'hui, 12 semaines au minimum, 3 ans au plus
 function activity(userId, games, from, to) {
-  const keys = weeklyBuckets(from, to);
+  let start = from;
+  if (!from) {
+    const firstGame = games[0]?.finished_at;
+    const firstAttempt = db.prepare('SELECT MIN(created_at) AS t FROM puzzle_attempts WHERE user_id = ?').get(userId).t;
+    const earliest = [firstGame, firstAttempt].filter(Boolean).sort()[0];
+    const twelve = new Date(Date.parse(to) - 11 * 7 * DAY).toISOString();
+    start = earliest && earliest < twelve ? earliest : twelve;
+  }
+  const keys = weeklyBuckets(start, to);
   const set = new Set(keys);
   const g = Object.fromEntries(keys.map(k => [k, { week: k, games: 0, wins: 0, puzzles: 0, solved: 0, accuracy: [], blunders: [] }]));
   for (const x of games) { const k = weekStart(x.finished_at); if (!set.has(k)) continue; g[k].games++; if (x.user_score === 1) g[k].wins++; if (x.accuracy_user !== null && x.accuracy_user !== undefined) { g[k].accuracy.push(x.accuracy_user); g[k].blunders.push((x.blunders || 0) + (x.mistakes || 0)); } }
@@ -169,6 +177,12 @@ function activity(userId, games, from, to) {
 function weaknessHistory(userId, from, to) {
   const rows = db.prepare(`SELECT category, score, computed_at FROM weakness_scores WHERE user_id = ? AND (? IS NULL OR computed_at >= ?) AND computed_at < ?
                            ORDER BY computed_at ASC, id ASC`).all(userId, from, from, to);
+  // Valeur connue juste avant la période, comme point de départ (sinon une période calme efface le profil)
+  if (from) {
+    const prev = db.prepare(`SELECT category, score FROM weakness_scores WHERE user_id = ? AND computed_at < ? AND id IN
+                             (SELECT MAX(id) FROM weakness_scores WHERE user_id = ? AND computed_at < ? GROUP BY category)`).all(userId, from, userId, from);
+    for (const r of prev) rows.unshift({ category: r.category, score: r.score, computed_at: from });
+  }
   const series = Object.fromEntries(CATEGORIES.map(c => [c, {}]));
   for (const r of rows) if (series[r.category]) series[r.category][day(r.computed_at)] = r.score;
   const days = [...new Set(rows.map(r => day(r.computed_at)))].sort();
@@ -177,8 +191,12 @@ function weaknessHistory(userId, from, to) {
 
 // Erreurs par catégorie dans la période (événements d'erreur des analyses)
 function errorsByCategory(userId, from, to) {
-  const rows = db.prepare(`SELECT category, severity, COUNT(*) AS n FROM error_events
-                           WHERE user_id = ? AND (? IS NULL OR created_at >= ?) AND created_at < ? GROUP BY category, severity`).all(userId, from, from, to);
+  // Datées par la fin de la partie (et non par l'analyse, qui peut être relancée plus tard) ; seule la dernière analyse compte
+  const rows = db.prepare(`SELECT e.category, e.severity, COUNT(*) AS n FROM error_events e
+                           JOIN games g ON g.id = e.game_id AND g.user_id = e.user_id
+                           WHERE e.user_id = ? AND g.status = 'finished' AND (? IS NULL OR g.finished_at >= ?) AND g.finished_at < ?
+                             AND e.analysis_id = (SELECT MAX(id) FROM analyses WHERE game_id = g.id AND status = 'done')
+                           GROUP BY e.category, e.severity`).all(userId, from, from, to);
   const out = Object.fromEntries(CATEGORIES.map(c => [c, { category: c, label: CATEGORIES_FR[c], inaccuracy: 0, mistake: 0, blunder: 0, total: 0 }]));
   for (const r of rows) if (out[r.category]) { out[r.category][r.severity] = r.n; out[r.category].total += r.n; }
   return Object.values(out).sort((a, b) => b.total - a.total);
@@ -207,7 +225,6 @@ export function statistics(userId, days = 30, now = Date.now()) {
     errors: errorsByCategory(userId, b.from, b.to),
     puzzles,
     elo: { start: elo.start, end: elo.end, delta: elo.delta, peak: elo.peak, low: elo.low },
-    activity: activity(userId, games, b.from, b.to),
     comparison: days === null ? null : {
       previous: { from: b.prevFrom, to: b.prevTo },
       games: { now: games.length, before: prevGames.length },
@@ -231,6 +248,7 @@ export function progression(userId, days = 30, now = Date.now()) {
     elo: eloCurve(userId, b.from, b.to),
     games: analysed.map(g => ({ id: g.id, t: g.finished_at, accuracy: g.accuracy_user, acpl: g.acpl_user, inaccuracies: g.inaccuracies || 0,
                                 mistakes: g.mistakes || 0, blunders: g.blunders || 0, score: g.user_score, ai_elo: g.ai_elo })),
+    summary: { ...tally(games), analysed: analysed.length, accuracy: avg(analysed.map(g => g.accuracy_user)), puzzles: puzzleStats(userId, b.from, b.to) },
     weaknesses: weaknessHistory(userId, b.from, b.to),
     themes: themeRatings(userId),
     activity: activity(userId, games, b.from, b.to),

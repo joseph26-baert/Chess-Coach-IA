@@ -7,14 +7,18 @@ import { TIME_CONTROL_LABELS, OFFSET_LABELS, TERMINATIONS } from '../chess-label
 import { header, tile, currentPeriod, periodLabel, n, delta, PERIODS } from './stats-common.js';
 
 let charts = [];
-export function unmount() { for (const c of charts) c.destroy(); charts = []; }
+let mountGen = 0;
+export function unmount() { mountGen++; for (const c of charts) c.destroy(); charts = []; }
 
 export async function render(main) {
+  const gen = ++mountGen;
   const period = currentPeriod();
   const s = await api.get(`/stats?period=${period}`);
+  if (gen !== mountGen) return;
   const c = themeColors();
   const r = s.results;
-  const alive = () => main.querySelector('#stats-root');
+  // Conserve un graphique si la page est toujours affichée, sinon le détruit (navigation pendant le chargement)
+  const keep = (ch) => { if (gen !== mountGen) { ch.destroy(); return false; } charts.push(ch); return true; };
 
   const segment = (t) => t.games ? html`
     <div class="result-bar" role="img" aria-label="${t.wins} victoires, ${t.draws} nulles, ${t.losses} défaites">
@@ -121,14 +125,13 @@ export async function render(main) {
 
   if (s.errors.some(e => e.total)) {
     const rows = s.errors.filter(e => e.total);
-    charts.push(await barChart(main.querySelector('#err-cat'), {
+    if (!keep(await barChart(main.querySelector('#err-cat'), {
       horizontal: true, stacked: true, legend: true, labels: rows.map(e => e.label), yTicks: { precision: 0 },
       series: [
         { label: 'Gaffes', data: rows.map(e => e.blunder), color: c.loss },
         { label: 'Erreurs', data: rows.map(e => e.mistake), color: withAlpha(c.loss, .5) },
         { label: 'Imprécisions', data: rows.map(e => e.inaccuracy), color: withAlpha(c.loss, .22) },
       ],
-    }));
-    if (!alive()) unmount();
+    }))) return;
   }
 }

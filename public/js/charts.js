@@ -28,8 +28,10 @@ export function withAlpha(hex, a) {
 }
 
 const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-export const shortDate = (iso) => { const d = new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
-export const longDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+// Une date seule (YYYY-MM-DD, clé de semaine) est lue en heure locale pour ne pas glisser d'un jour selon le fuseau
+const parse = (iso) => new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso + 'T00:00:00' : iso);
+export const shortDate = (iso) => { const d = parse(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+export const longDate = (iso) => parse(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
 function baseOptions(c, { yMin, yMax, yTicks, xTicks, suggestedMax, stacked, legend } = {}) {
   return {

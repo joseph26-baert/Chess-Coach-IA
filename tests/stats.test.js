@@ -121,11 +121,34 @@ test('progression sur 7 jours : courbe qui part de la dernière valeur connue', 
   assert.equal(p.activity.reduce((s, w) => s + w.puzzles, 0), 4);
 });
 
-test("semaines d'activité : 12 au plus, ordre chronologique, totaux cohérents", () => {
-  const s = S.statistics(uid, null, NOW);
-  assert.equal(s.activity.length, 12);
-  for (let i = 1; i < s.activity.length; i++) assert.ok(s.activity[i].week > s.activity[i - 1].week);
-  assert.equal(s.activity.reduce((n, w) => n + w.games, 0), 6);
+test("semaines d'activité : couvre toute la période, ordre chronologique, totaux cohérents", () => {
+  const p = S.progression(uid, null, NOW);
+  assert.equal(p.activity.length, 12); // première partie il y a 50 jours : les 12 semaines minimales suffisent
+  for (let i = 1; i < p.activity.length; i++) assert.ok(p.activity[i].week > p.activity[i - 1].week);
+  assert.equal(p.activity.reduce((n, w) => n + w.games, 0), 6);
+  assert.equal(p.activity.reduce((n, w) => n + w.puzzles, 0), 6);
+  assert.equal(p.summary.games, 6);
+  assert.equal(p.summary.puzzles.attempts, 6);
+  // 365 jours : 52 à 54 semaines, aucune partie perdue
+  const y = S.progression(uid, 365, NOW);
+  assert.ok(y.activity.length >= 52 && y.activity.length <= 54);
+  assert.equal(y.activity.reduce((n, w) => n + w.games, 0), 6);
+});
+
+test('période invalide via la chaîne de prototypes', () => {
+  assert.equal(S.periodDays('toString'), undefined);
+  assert.equal(S.periodDays('constructor'), undefined);
+});
+
+test('erreurs datées par la partie, pas par l\'analyse ; faiblesses : dernière valeur connue avant la période', () => {
+  // Une partie d'il y a 40 jours ré-analysée aujourd'hui : ses erreurs restent dans la période précédente
+  const g = db.prepare("SELECT id FROM games WHERE user_id = ? ORDER BY finished_at LIMIT 1 OFFSET 1").get(uid);
+  const aid = db.prepare("INSERT INTO analyses (game_id, user_id, status, accuracy_user, blunders, finished_at) VALUES (?, ?, 'done', 60, 3, ?)").run(g.id, uid, at(0)).lastInsertRowid;
+  for (let i = 0; i < 3; i++) db.prepare("INSERT INTO error_events (user_id, game_id, analysis_id, ply, category, motif, severity, loss_cp, created_at) VALUES (?, ?, ?, ?, 'tactics', 'x', 'blunder', 300, ?)").run(uid, g.id, aid, 20 + i, at(0));
+  assert.equal(S.statistics(uid, 30, NOW).errors.find(e => e.category === 'tactics').blunder, 2);
+  db.prepare("INSERT INTO weakness_scores (user_id, category, score, computed_at) VALUES (?, 'tactics', 35, ?)").run(uid, at(20));
+  const w = S.progression(uid, 7, NOW).weaknesses;
+  assert.equal(w.series.find(x => x.category === 'tactics').values[0], 35);
 });
 
 test("cloisonnement : les données d'un autre compte n'apparaissent pas", () => {

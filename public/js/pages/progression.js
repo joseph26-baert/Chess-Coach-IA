@@ -6,18 +6,21 @@ import { lineChart, barChart, themeColors, withAlpha, shortDate, longDate } from
 import { header, tile, currentPeriod, periodLabel, n, delta, emptyCard } from './stats-common.js';
 
 let charts = [];
-export function unmount() { for (const c of charts) c.destroy(); charts = []; }
+let mountGen = 0;
+export function unmount() { mountGen++; for (const c of charts) c.destroy(); charts = []; }
 
 export async function render(main) {
+  const gen = ++mountGen;
   const period = currentPeriod();
   const p = await api.get(`/stats/progression?period=${period}`);
+  if (gen !== mountGen) return; // l'utilisateur a changé de page ou de période pendant le chargement
   const c = themeColors();
-  const alive = () => main.querySelector('#prog-root');
+  // Conserve un graphique si la page est toujours affichée, sinon le détruit (navigation pendant le chargement)
+  const keep = (ch) => { if (gen !== mountGen) { ch.destroy(); return false; } charts.push(ch); return true; };
 
   const elo = p.elo;
-  const accs = p.games.map(g => g.accuracy);
-  const avgAcc = accs.length ? Math.round(10 * accs.reduce((s, x) => s + x, 0) / accs.length) / 10 : null;
-  const solved = p.activity.reduce((s, w) => s + w.solved, 0), attempts = p.activity.reduce((s, w) => s + w.puzzles, 0);
+  const avgAcc = p.summary.accuracy;
+  const solved = p.summary.puzzles.solved, attempts = p.summary.puzzles.attempts;
   const known = p.themes.filter(t => t.attempts >= 1).sort((a, b) => b.rating - a.rating);
 
   // Faiblesses : valeur actuelle et évolution sur la période (première valeur connue → dernière)
@@ -34,7 +37,7 @@ export async function render(main) {
       ${tile('Elo', elo.end === null ? '—' : elo.end, elo.points.length > 1 ? html`${delta(elo.delta)} sur la période · pic ${elo.peak}` : 'Aucune partie classée sur la période', 'elo')}
       ${tile('Précision moyenne', n(avgAcc, ' %'), p.games.length ? `${p.games.length} partie${p.games.length > 1 ? 's' : ''} analysée${p.games.length > 1 ? 's' : ''}` : 'Aucune partie analysée')}
       ${tile('Exercices réussis', attempts ? `${Math.round(100 * solved / attempts)} %` : '—', attempts ? `${solved} / ${attempts} exercices` : 'Aucun exercice sur la période')}
-      ${tile('Parties jouées', p.activity.reduce((s, w) => s + w.games, 0), `${p.activity.reduce((s, w) => s + w.wins, 0)} victoires`)}
+      ${tile('Parties jouées', p.summary.games, `${p.summary.wins} victoire${p.summary.wins > 1 ? 's' : ''}`)}
     </div>
 
     <div class="card chart-card" style="margin-top:16px">
@@ -82,15 +85,14 @@ export async function render(main) {
   // --- Courbe Elo
   if (elo.points.length > 1) {
     const pts = elo.points;
-    charts.push(await lineChart(main.querySelector('#elo-chart'), {
+    if (!keep(await lineChart(main.querySelector('#elo-chart'), {
       labels: pts.map(x => shortDate(x.t)),
       series: [{ label: 'Elo', data: pts.map(x => x.elo), color: c.amber, points: pts.length > 80 ? 0 : 3 }],
       tooltipTitle: (items) => longDate(pts[items[0].dataIndex].t),
       tooltipLabel: (it) => { const x = pts[it.dataIndex]; return x.game_id ? ` ${x.elo} Elo (${x.delta > 0 ? '+' : ''}${x.delta})${x.provisional ? ' · provisoire' : ''}` : ` ${x.elo} Elo au début de la période`; },
       onClick: (i) => { if (pts[i].game_id) location.hash = `#/partie/${pts[i].game_id}`; },
-    }));
+    }))) return;
   }
-  if (!alive()) return unmount();
 
   // --- Précision et erreurs : par partie, ou par semaine (moyennes) quand il y a beaucoup de parties
   if (p.games.length) {
@@ -98,56 +100,51 @@ export async function render(main) {
     if (g.length <= 25) {
       const labels = g.map(x => shortDate(x.t));
       const title = (items) => `${longDate(g[items[0].dataIndex].t)} · contre IA ${g[items[0].dataIndex].ai_elo}`;
-      charts.push(await lineChart(main.querySelector('#acc-chart'), {
+      if (!keep(await lineChart(main.querySelector('#acc-chart'), {
         labels, yMin: 0, yMax: 100, yTicks: { stepSize: 25, callback: v => v + ' %' },
         series: [{ label: 'Précision', data: g.map(x => x.accuracy), color: c.chart2, points: 3 }],
         tooltipTitle: title, tooltipLabel: (it) => ` Précision ${g[it.dataIndex].accuracy} %`,
         onClick: (i) => { location.hash = `#/partie/${g[i].id}`; },
-      }));
-      if (!alive()) return unmount();
-      charts.push(await barChart(main.querySelector('#err-chart'), {
+      }))) return;
+      if (!keep(await barChart(main.querySelector('#err-chart'), {
         labels, stacked: true, legend: true, yTicks: { precision: 0 },
         series: [{ label: 'Gaffes', data: g.map(x => x.blunders), color: c.loss }, { label: 'Erreurs', data: g.map(x => x.mistakes), color: withAlpha(c.loss, .45) }],
         tooltipTitle: title,
-      }));
+      }))) return;
     } else {
       const weeks = p.activity.filter(w => w.accuracy !== null);
       const labels = weeks.map(w => shortDate(w.week));
       const title = (items) => `Semaine du ${longDate(weeks[items[0].dataIndex].week)}`;
       main.querySelector('#acc-chart').closest('.chart-card').querySelector('.setup-hint').textContent = 'moyenne par semaine';
       main.querySelector('#err-chart').closest('.chart-card').querySelector('.setup-hint').textContent = 'gaffes + erreurs, moyenne par partie et par semaine';
-      charts.push(await lineChart(main.querySelector('#acc-chart'), {
+      if (!keep(await lineChart(main.querySelector('#acc-chart'), {
         labels, yMin: 0, yMax: 100, yTicks: { stepSize: 25, callback: v => v + ' %' },
         series: [{ label: 'Précision', data: weeks.map(w => w.accuracy), color: c.chart2, points: 3 }],
         tooltipTitle: title, tooltipLabel: (it) => ` Précision moyenne ${weeks[it.dataIndex].accuracy} %`,
-      }));
-      if (!alive()) return unmount();
-      charts.push(await barChart(main.querySelector('#err-chart'), {
+      }))) return;
+      if (!keep(await barChart(main.querySelector('#err-chart'), {
         labels, yTicks: { precision: 1 },
         series: [{ label: 'Erreurs graves par partie', data: weeks.map(w => w.errorsPerGame), color: c.loss }],
         tooltipTitle: title, tooltipLabel: (it) => ` ${weeks[it.dataIndex].errorsPerGame} erreur(s) grave(s) par partie`,
-      }));
+      }))) return;
     }
-    if (!alive()) return unmount();
   }
 
   // --- Niveau par thème (barres horizontales, une seule teinte)
   if (known.length) {
-    charts.push(await barChart(main.querySelector('#theme-chart'), {
+    if (!keep(await barChart(main.querySelector('#theme-chart'), {
       horizontal: true, labels: known.map(t => t.label), yTicks: { precision: 0 },
       series: [{ label: 'Niveau', data: known.map(t => t.rating), color: c.chart2 }],
       tooltipLabel: (it) => { const t = known[it.dataIndex]; return ` ${t.rating} · ${t.solved}/${t.attempts} réussis (${t.rate ?? 0} %)`; },
-    }));
-    if (!alive()) return unmount();
+    }))) return;
   }
 
   // --- Activité
   const act = p.activity;
-  charts.push(await barChart(main.querySelector('#act-chart'), {
+  if (!keep(await barChart(main.querySelector('#act-chart'), {
     labels: act.map(w => shortDate(w.week)), legend: true, yTicks: { precision: 0 },
     series: [{ label: 'Parties', data: act.map(w => w.games), color: c.chart2 }, { label: 'Exercices', data: act.map(w => w.puzzles), color: c.amber }],
     tooltipTitle: (items) => `Semaine du ${longDate(act[items[0].dataIndex].week)}`,
     tooltipLabel: (it) => { const w = act[it.dataIndex]; return it.datasetIndex === 0 ? ` ${w.games} partie${w.games > 1 ? 's' : ''}, ${w.wins} victoire${w.wins > 1 ? 's' : ''}` : ` ${w.puzzles} exercice${w.puzzles > 1 ? 's' : ''}, ${w.solved} réussi${w.solved > 1 ? 's' : ''}`; },
-  }));
-  if (!alive()) unmount();
+  }))) return;
 }
