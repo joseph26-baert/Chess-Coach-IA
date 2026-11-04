@@ -23,7 +23,9 @@ function playerIndex(raw) {
   return n;
 }
 
-router.get('/overview', wrap((req, res) => res.json(T.overview(req.user.id))));
+const tzOf = (req) => (typeof req.query.tz === 'string' && req.query.tz.length <= 64 ? req.query.tz : null);
+
+router.get('/overview', wrap((req, res) => res.json(T.overview(req.user.id, tzOf(req)))));
 
 router.get('/themes', wrap((req, res) => res.json({ themes: Object.entries(THEMES).map(([k, v]) => ({ theme: k, ...v })) })));
 
@@ -35,7 +37,7 @@ router.get('/next', wrap((req, res) => {
   const excludeIds = String(exclude || '').split(',').filter(Boolean).slice(0, 100).map(Number).filter(Number.isInteger);
   const picked = theme || category
     ? T.pickPuzzle(req.user.id, { theme: theme || null, category: category || null, excludeIds })
-    : T.pickProgramPuzzle(req.user.id, excludeIds);
+    : T.pickProgramPuzzle(req.user.id, excludeIds, tzOf(req));
   if (!picked) return res.json({ puzzle: null });
   T.openSession(req.user.id, picked.puzzle.id);
   res.json({ puzzle: T.publicPuzzle(picked.puzzle, { reason: picked.reason, category: picked.category, slot: picked.slot?.reason || null }) });
@@ -100,7 +102,7 @@ router.post('/puzzle/:id/attempt', wrap((req, res) => {
   const outcome = T.sessionResult(req.user.id, p);
   if (!outcome) throw err(409, "Aucune résolution en cours pour cet exercice.");
   const out = T.recordAttempt(req.user.id, p.id, outcome);
-  res.json({ attempt: { ...out, result: outcome.result, themeLabels: p.themes.map(t => THEMES[t]?.fr || t), mate_in: p.mate_in }, program: T.dailyProgram(req.user.id) });
+  res.json({ attempt: { ...out, result: outcome.result, themeLabels: p.themes.map(t => THEMES[t]?.fr || t), mate_in: p.mate_in }, program: T.dailyProgram(req.user.id, tzOf(req)) });
 }));
 
 export default router;

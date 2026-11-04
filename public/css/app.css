@@ -257,7 +257,7 @@ p { margin: 0 0 1em; max-width: 62ch; }
 .move-btn.on { background: var(--green); color: #fff; }
 .play-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .check { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: .9rem; }
-.replay-controls { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 0; }
+.play-board-col > .replay-bar { justify-content: center; padding: 6px 0; }
 .replay-pos { min-width: 9em; text-align: center; color: var(--text-2); font-variant-numeric: tabular-nums; }
 
 .setup { max-width: 720px; }
@@ -410,7 +410,9 @@ p { margin: 0 0 1em; max-width: 62ch; }
 .captured svg { width: 21px; height: 21px; margin-left: -6px; }
 .captured svg:first-child { margin-left: 0; }
 .captured .adv { margin-left: 6px; font-size: .8rem; color: var(--text-2); font-weight: 600; }
-.replay-bar { display: flex; align-items: center; gap: 4px; margin: 8px 0; flex-wrap: wrap; }
-.replay-bar .btn { padding: 4px 10px; }
-.replay-bar .btn:disabled { opacity: .35; cursor: default; }
-.replay-bar .setup-hint { margin-left: 6px; }
+.replay-bar { display: flex; align-items: center; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+.replay-btn { width: 36px; height: 32px; display: inline-grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text-2); cursor: pointer; padding: 0; transition: background .15s, color .15s; }
+.replay-btn svg { width: 18px; height: 18px; fill: currentColor; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.replay-btn:hover:not(:disabled) { background: var(--green); color: #fff; border-color: var(--green); }
+.replay-btn:disabled { opacity: .35; cursor: default; }
+.replay-bar .setup-hint, .replay-bar .replay-pos { margin: 0 4px; }

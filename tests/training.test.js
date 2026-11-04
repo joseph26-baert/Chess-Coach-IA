@@ -191,3 +191,15 @@ test('chaque thème a une catégorie de faiblesse', () => {
   for (const [k, v] of Object.entries(THEMES)) assert.ok(T.CATEGORIES.includes(v.category), k);
   assert.equal(puzzleKey('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 5 9'), 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq -');
 });
+
+test('programme du jour : compté dans le fuseau du joueur', async () => {
+  const uid = makeUser('fuseau');
+  // Tentative à 23:30 UTC hier : « aujourd'hui » à Zurich (UTC+1, donc 00:30 local), pas en Amérique
+  const { startOfToday } = T;
+  const zurich = startOfToday('Europe/Zurich'), ny = startOfToday('America/New_York');
+  assert.ok(zurich.since <= new Date().toISOString() && ny.since <= new Date().toISOString());
+  assert.equal(startOfToday('fuseau/bidon').since, startOfToday('UTC').since);
+  db.prepare("INSERT INTO puzzle_attempts (user_id, puzzle_id, result, created_at) VALUES (?, 1, 'solved', ?)").run(uid, zurich.since);
+  assert.equal(T.dailyProgram(uid, 'Europe/Zurich').done, 1);
+  if (ny.since > zurich.since) assert.equal(T.dailyProgram(uid, 'America/New_York').done, 0);
+});

@@ -4,7 +4,7 @@ import { scoreLabel, TERMINATIONS } from '../chess-labels.js';
 
 export async function render(main) {
   const [{ user, stats, elo }, { game: current }, { games: recent }, training] = await Promise.all([
-    api.get('/profile'), api.get('/games/current'), api.get('/games?limit=5'), api.get('/training/overview'),
+    api.get('/profile'), api.get('/games/current'), api.get('/games?limit=5'), api.get('/training/overview?tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')),
   ]);
   const weak = training.weaknesses.filter(w => w.score !== null && w.score < 40).sort((a, b) => a.score - b.score).slice(0, 2);
   const strong = training.weaknesses.filter(w => w.score !== null && w.score > 70).sort((a, b) => b.score - a.score).slice(0, 2);

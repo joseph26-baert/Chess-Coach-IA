@@ -5,7 +5,7 @@ import { api } from '../api.js';
 const CATEGORY_ORDER = ['tactics', 'calculation', 'threats', 'material', 'defense', 'openings', 'strategy', 'endgames'];
 
 export async function render(main) {
-  const o = await api.get('/training/overview');
+  const o = await api.get('/training/overview?tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'));
   const byCat = Object.fromEntries(o.weaknesses.map(w => [w.category, w]));
   const themesByCat = {};
   for (const t of o.themes) (themesByCat[t.category] ??= []).push(t);

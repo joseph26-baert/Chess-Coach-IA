@@ -2,6 +2,7 @@
 import { html, raw, formatDelta, formatDate, toast } from '../ui.js';
 import { api } from '../api.js';
 import { createBoard, FEN } from '../board.js';
+import { replayBar } from '../replay-ui.js';
 import { TERMINATIONS, TIME_CONTROL_LABELS, scoreLabel, formatDuration, LABELS, LABEL_SYMBOLS, CATEGORIES } from '../chess-labels.js';
 
 let boardApi = null;

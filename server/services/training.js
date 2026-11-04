@@ -208,8 +208,8 @@ function fallbackPuzzle(userId, excluded, cat) {
 }
 
 // Prochain exercice du programme du jour : suit les créneaux dans l'ordre
-export function pickProgramPuzzle(userId, excludeIds = []) {
-  const program = dailyProgram(userId);
+export function pickProgramPuzzle(userId, excludeIds = [], tz = null) {
+  const program = dailyProgram(userId, tz);
   const slot = program.slots[program.done] || program.slots[program.slots.length - 1];
   if (!slot) return pickPuzzle(userId, { excludeIds });
   if (slot.label === 'Révision') {
@@ -274,7 +274,19 @@ export function recordAttempt(userId, puzzleId, { result, hints = 0, time_ms = n
 // ---------------------------------------------------------------------------
 // Programme du jour et vue d'ensemble
 // ---------------------------------------------------------------------------
-export function dailyProgram(userId) {
+// Début du jour courant dans le fuseau de l'utilisateur (ISO UTC) ; fuseau inconnu → UTC
+export function startOfToday(tz) {
+  let zone = 'UTC';
+  try { if (tz) { new Intl.DateTimeFormat('en-CA', { timeZone: tz }); zone = tz; } } catch { /* fuseau invalide */ }
+  const now = new Date();
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now); // YYYY-MM-DD
+  // Décalage du fuseau à cet instant : différence entre l'heure locale « lue comme UTC » et l'heure UTC réelle
+  const local = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(now).replace(', ', 'T').replace(' ', 'T') + 'Z');
+  const offsetMs = local.getTime() - now.getTime() + (now.getMilliseconds());
+  return { date: day, since: new Date(Date.parse(day + 'T00:00:00Z') - Math.round(offsetMs / 60000) * 60000).toISOString() };
+}
+
+export function dailyProgram(userId, tz = null) {
   const weaknesses = latestWeaknesses(userId);
   const known = weaknesses.filter(w => w.score !== null).sort((a, b) => a.score - b.score);
   const due = dueReviews(userId, 10).length;
@@ -285,12 +297,12 @@ export function dailyProgram(userId) {
   slots.push({ category: 'endgames', label: CATEGORIES_FR.endgames, reason: 'Entretien des finales' });
   slots.push({ category: 'calculation', label: CATEGORIES_FR.calculation, reason: 'Entretien du calcul' });
   while (slots.length < 12) slots.push({ category: null, label: 'Mixte', reason: 'Exercice au niveau, thème varié' });
-  const today = new Date().toISOString().slice(0, 10);
-  const done = db.prepare("SELECT COUNT(*) AS n FROM puzzle_attempts WHERE user_id = ? AND created_at >= ?").get(userId, today).n;
-  return { date: today, total: slots.length, done: Math.min(done, slots.length), due, slots, weakest: weakest.map(w => w.category) };
+  const { date, since } = startOfToday(tz);
+  const done = db.prepare("SELECT COUNT(*) AS n FROM puzzle_attempts WHERE user_id = ? AND created_at >= ?").get(userId, since).n;
+  return { date, total: slots.length, done: Math.min(done, slots.length), due, slots, weakest: weakest.map(w => w.category) };
 }
 
-export function overview(userId) {
+export function overview(userId, tz = null) {
   let weaknesses = latestWeaknesses(userId);
   if (weaknesses.every(w => w.score === null)) { computeWeaknesses(userId); weaknesses = latestWeaknesses(userId); }
   const themes = Object.entries(THEMES).map(([k, v]) => {
@@ -300,7 +312,7 @@ export function overview(userId) {
   });
   const totals = db.prepare(`SELECT COUNT(*) AS n, SUM(CASE WHEN result != 'failed' THEN 1 ELSE 0 END) AS ok FROM puzzle_attempts WHERE user_id = ?`).get(userId);
   const own = db.prepare("SELECT COUNT(*) AS n FROM puzzles WHERE user_id = ?").get(userId).n;
-  return { weaknesses, themes, program: dailyProgram(userId), totals: { attempts: totals.n || 0, solved: totals.ok || 0 }, ownPuzzles: own, due: dueReviews(userId, 50).length };
+  return { weaknesses, themes, program: dailyProgram(userId, tz), totals: { attempts: totals.n || 0, solved: totals.ok || 0 }, ownPuzzles: own, due: dueReviews(userId, 50).length };
 }
 
 // ---------------------------------------------------------------------------

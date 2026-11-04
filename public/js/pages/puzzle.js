@@ -2,11 +2,13 @@
 import { html, toast } from '../ui.js';
 import { api } from '../api.js';
 import { createBoard } from '../board.js';
+import { replayBar } from '../replay-ui.js';
 
 let boardApi = null;
 let gen = 0;
+let keyHandler = null;
 
-export function unmount() { gen++; boardApi?.destroy(); boardApi = null; }
+export function unmount() { gen++; if (keyHandler) document.removeEventListener('keydown', keyHandler); keyHandler = null; boardApi?.destroy(); boardApi = null; }
 
 export async function render(main) {
   const myGen = ++gen;
@@ -30,6 +32,7 @@ export async function render(main) {
         <div class="card">
           <div class="pz-status" id="pz-status"></div>
           <div class="pz-moves" id="pz-moves"></div>
+          <div id="pz-replay" hidden>${replayBar('nav')}<div class="setup-hint" style="margin:-4px 0 8px">Revoir les coups de l'exercice (lecture seule).</div></div>
           <div class="pz-actions">
             <button class="btn btn-ghost btn-sm" id="hint-btn">Indice</button>
             <button class="btn btn-ghost btn-sm" id="solution-btn">Voir la solution</button>
@@ -41,7 +44,7 @@ export async function render(main) {
     </div>`;
 
   const el = (id) => main.querySelector('#' + id);
-  let p = null, index = 0, hints = 0, startedAt = 0, finished = false, playedSan = [];
+  let p = null, index = 0, hints = 0, startedAt = 0, finished = false, playedSan = [], fens = [], viewPly = null;
   let chessMoves = null;
 
   async function load() {
@@ -49,6 +52,7 @@ export async function render(main) {
     if (theme) q.set('theme', theme);
     if (category) q.set('category', category);
     if (seen.length) q.set('exclude', seen.join(','));
+    q.set('tz', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
     const { puzzle } = await api.get('/training/next?' + q.toString());
     if (myGen !== gen) return;
     if (!puzzle) {
@@ -56,7 +60,8 @@ export async function render(main) {
       el('pz-info').innerHTML = html`<a class="btn btn-ghost" href="#/entrainement">Retour à l'entraînement</a>`;
       return;
     }
-    p = puzzle; index = 0; hints = 0; finished = false; playedSan = []; startedAt = Date.now();
+    p = puzzle; index = 0; hints = 0; finished = false; playedSan = []; fens = [puzzle.fen]; viewPly = null; startedAt = Date.now();
+    el('pz-replay').hidden = true;
     seen.push(p.id);
     boardApi?.destroy();
     boardApi = createBoard(el('board'), { fen: p.fen, orientation: p.turn, onMove: onUserMove });
@@ -91,7 +96,7 @@ export async function render(main) {
       return false;
     }
     const mv = chessMoves.move({ from, to, promotion });
-    playedSan.push(mv.san);
+    playedSan.push(mv.san); fens.push(chessMoves.fen());
     boardApi.setLastMove(from, to);
     renderMoves();
     index++;
@@ -100,7 +105,7 @@ export async function render(main) {
     setTimeout(() => {
       if (myGen !== gen) return;
       const rep = chessMoves.move({ from: r.reply.slice(0, 2), to: r.reply.slice(2, 4), promotion: r.reply[4] });
-      playedSan.push(rep.san);
+      playedSan.push(rep.san); fens.push(chessMoves.fen());
       boardApi.setPosition(chessMoves.fen(), true).then(() => { boardApi.setLastMove(r.reply.slice(0, 2), r.reply.slice(2, 4)); boardApi.enableInput(p.turn); });
       renderMoves();
       el('pz-status').textContent = 'Bien. Continuez.';
@@ -124,9 +129,10 @@ export async function render(main) {
     finished = true;
     boardApi.disableInput();
     el('hint-btn').disabled = true; el('solution-btn').disabled = true;
+    if (fens.length > 1) { el('pz-replay').hidden = false; updateReplayButtons(); }
     try {
       // Le serveur déduit le résultat de ce qu'il a validé (coups, indices, solution vue)
-      const { attempt } = await api.post(`/training/puzzle/${p.id}/attempt`, {});
+      const { attempt } = await api.post(`/training/puzzle/${p.id}/attempt?tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')}`, {});
       if (myGen !== gen) return true;
       const result = attempt.result;
       stats.done++; if (result !== 'failed') stats.solved++;
@@ -162,10 +168,10 @@ export async function render(main) {
     try { ({ solution, san } = await api.get(`/training/puzzle/${p.id}/solution`)); } catch (e) { toast(e.message); finished = false; boardApi.enableInput(p.turn); return; }
     if (myGen !== gen) return;
     // Rejoue la solution depuis le début, coup par coup
-    const c = boardApi.chess; c.load(p.fen); playedSan = [];
+    const c = boardApi.chess; c.load(p.fen); playedSan = []; fens = [p.fen];
     for (let i = 0; i < solution.length; i++) {
       if (myGen !== gen) return;
-      c.move(san[i]); playedSan.push(san[i]);
+      c.move(san[i]); playedSan.push(san[i]); fens.push(c.fen());
       await boardApi.setPosition(c.fen(), true);
       boardApi.setLastMove(solution[i].slice(0, 2), solution[i].slice(2, 4));
       renderMoves();
@@ -174,6 +180,24 @@ export async function render(main) {
     finished = false; // finish() repasse à true
     await finish();
   });
+
+  function showPly(i) {
+    if (!finished) return;
+    i = Math.max(0, Math.min(fens.length - 1, i));
+    viewPly = i === fens.length - 1 ? null : i;
+    boardApi.setPosition(fens[i], true);
+    updateReplayButtons();
+  }
+  function updateReplayButtons() {
+    const cur = viewPly ?? fens.length - 1;
+    main.querySelectorAll('[data-nav]').forEach(b => { const k = b.dataset.nav; b.disabled = (k === 'start' || k === 'prev') ? cur === 0 : cur === fens.length - 1; });
+  }
+  main.querySelectorAll('[data-nav]').forEach(b => b.addEventListener('click', () => {
+    const cur = viewPly ?? fens.length - 1, k = b.dataset.nav;
+    showPly(k === 'start' ? 0 : k === 'end' ? fens.length - 1 : k === 'prev' ? cur - 1 : cur + 1);
+  }));
+  keyHandler = (e) => { if (!finished || e.target.closest('input, textarea')) return; const cur = viewPly ?? fens.length - 1; if (e.key === 'ArrowLeft') showPly(cur - 1); else if (e.key === 'ArrowRight') showPly(cur + 1); };
+  document.addEventListener('keydown', keyHandler);
 
   el('next-btn').addEventListener('click', load);
   await load();

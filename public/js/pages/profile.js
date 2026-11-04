@@ -2,7 +2,7 @@ import { html, formatDelta, formatDate, initials } from '../ui.js';
 import { api } from '../api.js';
 
 export async function render(main) {
-  const [{ user, stats, elo }, overview] = await Promise.all([api.get('/profile'), api.get('/training/overview')]);
+  const [{ user, stats, elo }, overview] = await Promise.all([api.get('/profile'), api.get('/training/overview?tz=' + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'))]);
   const known = overview.weaknesses.filter(w => w.score !== null);
   const strengths = known.filter(w => w.score > 70).sort((a, b) => b.score - a.score);
   const weaknesses = known.filter(w => w.score < 40).sort((a, b) => a.score - b.score);

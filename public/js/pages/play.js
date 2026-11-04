@@ -3,6 +3,7 @@ import { html, raw, toast, formatDelta } from '../ui.js';
 import { api } from '../api.js';
 import { state, setUser, navigate } from '../app.js';
 import { createBoard } from '../board.js';
+import { replayBar } from '../replay-ui.js';
 import { TERMINATIONS, TIME_CONTROL_LABELS, resultLabel } from '../chess-labels.js';
 
 let boardApi = null;
@@ -130,13 +131,8 @@ function renderGame(main, g) {
         <div class="card">
           <div class="status" id="status"></div>
           <div class="moves" id="moves"></div>
-          <div class="replay-bar">
-            <button class="btn btn-ghost btn-sm" data-nav="start" type="button" title="Début">⏮</button>
-            <button class="btn btn-ghost btn-sm" data-nav="prev" type="button" title="Coup précédent">◀</button>
-            <button class="btn btn-ghost btn-sm" data-nav="next" type="button" title="Coup suivant">▶</button>
-            <button class="btn btn-ghost btn-sm" data-nav="end" type="button" title="Position actuelle">⏭</button>
-            <span class="setup-hint" id="replay-hint"></span>
-          </div>
+          ${replayBar('nav')}
+          <div class="setup-hint" id="replay-hint" style="margin:-4px 0 8px"></div>
           <div class="play-actions">
             <button class="btn btn-danger btn-sm" id="resign-btn">Abandonner</button>
             <label class="check"><input type="checkbox" id="threats-toggle" ${state.user.show_threats ? 'checked' : ''}> Cases menacées</label>
@@ -254,7 +250,7 @@ function updateView() {
     status.textContent = 'Partie terminée.';
   }
   const hint = document.getElementById('replay-hint');
-  if (hint) hint.textContent = browsing ? 'Lecture seule — ⏭ pour revenir à la partie' : (n ? 'Revoir les coups : ◀ ▶ ou flèches du clavier' : '');
+  if (hint) hint.textContent = browsing ? 'Lecture seule : le dernier bouton ramène à la partie.' : (n ? 'Revoir les coups : boutons ou flèches du clavier.' : '');
   document.querySelectorAll('[data-nav]').forEach(b => { b.disabled = (b.dataset.nav === 'start' || b.dataset.nav === 'prev') ? shownPly === 0 : !browsing; });
 
   // Pièces prises et avantage matériel (sur la position affichée)
