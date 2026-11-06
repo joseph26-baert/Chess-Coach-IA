@@ -187,11 +187,20 @@ async function submitMove({ from, to, promotion }) {
     return true;
   } catch (err) {
     if (token !== session) return true;
-    toast(err.message);
-    if (err.status === 400 || err.status === 409) { updateView(); return false; }
-    // Erreur serveur : on se resynchronise sur l'état réel de la partie
-    try { const { game: g } = await api.get('/games/current'); if (g && token === session) applyServerState(g); } catch { /* réseau */ }
-    return true;
+    // Quelle que soit l'erreur, on se resynchronise sur l'état réel du serveur : après un redémarrage
+    // du serveur, le navigateur peut avoir une position en avance (coup refusé « illégal »)
+    let g = null;
+    try { ({ game: g } = await api.get('/games/current')); } catch { /* réseau */ }
+    if (token !== session) return true;
+    if (g && g.id === game.id) {
+      const desync = g.fen !== game.fen;
+      applyServerState(g);
+      toast(desync ? 'Partie resynchronisée avec le serveur : rejouez votre coup.' : err.message);
+      return !desync && err.status !== 400 && err.status !== 409 ? true : false;
+    }
+    if (g && g.id !== game.id) { toast('Partie resynchronisée avec le serveur.'); const main = document.getElementById('main'); renderGame(main, g); return true; }
+    if (!g && err.status === 404) { toast('Cette partie n\'existe plus sur le serveur (redémarrage). Vous pouvez en commencer une nouvelle.'); navigate('/jouer'); location.reload(); return true; }
+    toast(err.message); updateView(); return false;
   }
 }
 

@@ -416,3 +416,6 @@ p { margin: 0 0 1em; max-width: 62ch; }
 .replay-btn:hover:not(:disabled) { background: var(--green); color: #fff; border-color: var(--green); }
 .replay-btn:disabled { opacity: .35; cursor: default; }
 .replay-bar .setup-hint, .replay-bar .replay-pos { margin: 0 4px; }
+
+.wake-note { margin-top: 18px; padding: 10px 14px; border-left: 3px solid var(--amber); background: var(--surface); border-radius: var(--radius-sm); color: var(--text-2); font-size: .9rem; max-width: 52ch; }
+.wake-note em { color: var(--text-3); font-style: normal; }

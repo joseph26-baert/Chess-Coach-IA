@@ -38,6 +38,7 @@ export async function render(main) {
         <h1>Un adversaire qui joue comme vous, et un coach qui vous connaît.</h1>
         <p class="lead">Jouez contre une IA qui se trompe comme un humain, à votre niveau exact. Chaque partie fait évoluer votre Elo, est analysée, et nourrit un entraînement ciblé sur vos vraies faiblesses.</p>
         <div class="hero-actions">${cta}</div>
+        <p class="wake-note"><strong>Please wait ~30 seconds</strong> if a page is slow to load: the site is hosted for free and wakes up after a period of inactivity. — <em>Patientez ~30 secondes si une page met du temps à charger : hébergé gratuitement, le site se réveille après une période d'inactivité.</em></p>
       </div>
       <div class="hero-board" aria-hidden="true">${board()}</div>
     </section>
