@@ -170,3 +170,16 @@ test('compte vide : aucune erreur, valeurs nulles', () => {
   assert.deepEqual(p.elo.points, []);
   assert.deepEqual(p.weaknesses.days, []);
 });
+
+test('précision par phase : coups répartis par numéro de coup', () => {
+  const g = db.prepare("SELECT g.id, a.id AS aid FROM games g JOIN analyses a ON a.game_id = g.id WHERE g.user_id = ? ORDER BY g.finished_at DESC LIMIT 1").get(uid);
+  const ins = db.prepare(`INSERT INTO move_evals (analysis_id, game_id, ply, by_user, eval_before, eval_after, played_san, loss_cp, label) VALUES (?, ?, ?, 1, ?, ?, 'x', ?, ?)`);
+  ins.run(g.aid, g.id, 5, 20, 20, 0, 'best');        // ouverture, meilleur coup
+  ins.run(g.aid, g.id, 41, 50, -300, 350, 'blunder'); // milieu, gaffe
+  ins.run(g.aid, g.id, 75, 0, 0, 0, 'best');         // finale
+  const s = S.statistics(uid, 30, NOW);
+  const by = Object.fromEntries(s.phases.map(p => [p.phase, p]));
+  assert.equal(by.opening.moves, 1); assert.equal(by.opening.accuracy, 100);
+  assert.equal(by.middlegame.moves, 1); assert.equal(by.middlegame.errorRate, 100); assert.ok(by.middlegame.accuracy < 60);
+  assert.equal(by.endgame.moves, 1);
+});

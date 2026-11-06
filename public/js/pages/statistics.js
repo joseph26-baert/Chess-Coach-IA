@@ -113,6 +113,22 @@ export async function render(main) {
       </div>
     </div>
 
+    ${s.phases.some(p => p.moves) ? html`
+    <div class="card" style="margin-top:16px">
+      <h3>Précision par phase de jeu</h3>
+      <div class="grid grid-3">
+        ${s.phases.map(p => html`
+          <div class="term-row">
+            <div><strong>${p.label}</strong><div class="setup-hint">${p.moves} coup${p.moves > 1 ? 's' : ''} analysé${p.moves > 1 ? 's' : ''}</div></div>
+            ${p.moves ? html`
+              <div class="list-row"><span class="k">Précision des coups</span><span>${p.accuracy} %</span></div>
+              <div class="list-row"><span class="k">Perte moyenne</span><span>${p.acpl} cp</span></div>
+              <div class="list-row"><span class="k">Erreurs graves</span><span>${p.errorRate} % des coups</span></div>` : html`<div class="setup-hint">—</div>`}
+          </div>`)}
+      </div>
+      <p class="setup-hint" style="margin-top:8px">Précision moyenne coup par coup (différente de la précision de partie, qui pèse davantage les gaffes). La phase où la perte moyenne est la plus haute est celle à travailler en priorité.</p>
+    </div>` : ''}
+
     ${Object.keys(r.byTermination).length ? html`
     <div class="card" style="margin-top:16px">
       <h3>Comment vos parties se terminent</h3>

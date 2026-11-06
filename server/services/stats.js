@@ -2,7 +2,7 @@
 // (parties, Elo, analyses, exercices). Tout est calculé à la demande ; aucune
 // donnée n'est modifiée ici.
 import { db } from '../db.js';
-import { CATEGORIES_FR } from './analysis.js';
+import { CATEGORIES_FR, winProb, moveAccuracy } from './analysis.js';
 import { THEMES } from './puzzles.js';
 import { CATEGORIES } from './training.js';
 
@@ -216,6 +216,29 @@ function journalEvents(userId, from, to) {
   };
 }
 
+// Précision par phase de jeu (coups du joueur, dernière analyse de chaque partie de la période)
+// Ouverture : coups 1–10 ; milieu : 11–30 ; finale : au-delà (approximation par le numéro de coup)
+function phaseStats(userId, from, to) {
+  const rows = db.prepare(`SELECT e.ply, e.eval_before, e.eval_after, e.loss_cp, e.label, g.user_color FROM move_evals e
+                           JOIN games g ON g.id = e.game_id
+                           WHERE g.user_id = ? AND e.by_user = 1 AND g.status = 'finished' AND (? IS NULL OR g.finished_at >= ?) AND g.finished_at < ?
+                             AND e.analysis_id = (SELECT MAX(id) FROM analyses WHERE game_id = g.id AND status = 'done')`).all(userId, from, from, to);
+  const phases = { opening: { label: 'Ouverture (coups 1–10)', moves: 0, acc: 0, loss: 0, blunders: 0, mistakes: 0 },
+                   middlegame: { label: 'Milieu de partie (11–30)', moves: 0, acc: 0, loss: 0, blunders: 0, mistakes: 0 },
+                   endgame: { label: 'Finale (31 et plus)', moves: 0, acc: 0, loss: 0, blunders: 0, mistakes: 0 } };
+  for (const r of rows) {
+    const moveNo = Math.ceil(r.ply / 2);
+    const ph = phases[moveNo <= 10 ? 'opening' : moveNo <= 30 ? 'middlegame' : 'endgame'];
+    const mover = r.user_color === 'white' ? 'w' : 'b';
+    ph.moves++; ph.loss += Math.min(r.loss_cp, 1000);
+    ph.acc += r.label === 'best' ? 100 : moveAccuracy(winProb(r.eval_before), winProb(r.eval_after), mover);
+    if (r.label === 'blunder') ph.blunders++; else if (r.label === 'mistake') ph.mistakes++;
+  }
+  return Object.entries(phases).map(([k, p]) => ({ phase: k, label: p.label, moves: p.moves,
+    accuracy: p.moves ? Math.round(10 * p.acc / p.moves) / 10 : null, acpl: p.moves ? Math.round(p.loss / p.moves) : null,
+    errorRate: p.moves ? Math.round(1000 * (p.blunders + p.mistakes) / p.moves) / 10 : null }));
+}
+
 // ---------------------------------------------------------------------------
 // Points d'entrée
 
@@ -237,6 +260,7 @@ export function statistics(userId, days = 30, now = Date.now()) {
                avgMoves: avg(games.map(g => Math.ceil(g.move_count / 2))), avgDurationS: avg(games.filter(g => g.duration_s).map(g => g.duration_s)) },
     accuracy: acc,
     errors: errorsByCategory(userId, b.from, b.to),
+    phases: phaseStats(userId, b.from, b.to),
     puzzles,
     elo: { start: elo.start, end: elo.end, delta: elo.delta, peak: elo.peak, low: elo.low },
     comparison: days === null ? null : {

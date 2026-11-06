@@ -17,7 +17,9 @@ services:
       - key: ENGINE_POOL
         value: "1"
       - key: ANALYSIS_DEPTH
-        value: "12"
+        value: "14"
+      - key: ANALYSIS_MOVETIME_MS
+        value: "2500"
       - key: SESSION_SECRET
         generateValue: true
       - key: BASE_URL              # adresse publique du site, ex. https://chess-coach-ia.onrender.com
