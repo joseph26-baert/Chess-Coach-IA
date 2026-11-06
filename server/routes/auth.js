@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { db } from '../db.js';
 import { mailEnabled, sendMail, resetPasswordMail } from '../services/mail.js';
 import { publicUser, requireAuth } from '../middleware.js';
-import { STARTING_ELO } from '../services/elo.js';
+import { STARTING_ELO, MIN_START_ELO, MAX_START_ELO } from '../services/elo.js';
 
 const router = Router();
 
@@ -46,6 +46,12 @@ router.post('/register', async (req, res) => {
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'Adresse e-mail invalide.' });
   if (!USERNAME_RE.test(username)) return res.status(400).json({ error: "Nom d'utilisateur : 3 à 20 caractères (lettres, chiffres, _ ou -)." });
   if (password.length < 8) return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  // Elo de départ choisi par le joueur (estimation), affiné ensuite par les premières parties (classement provisoire)
+  let startElo = STARTING_ELO;
+  if (req.body.start_elo !== undefined && req.body.start_elo !== null && req.body.start_elo !== '') {
+    startElo = Number(req.body.start_elo);
+    if (!Number.isInteger(startElo) || startElo < MIN_START_ELO || startElo > MAX_START_ELO) return res.status(400).json({ error: `Elo de départ : entre ${MIN_START_ELO} et ${MAX_START_ELO}.` });
+  }
 
   const exists = db.prepare('SELECT id, email, username FROM users WHERE email = ? OR username = ?').get(email, username);
   if (exists) {
@@ -56,11 +62,11 @@ router.post('/register', async (req, res) => {
 
   const hash = await bcrypt.hash(password, 12);
   const info = db.prepare('INSERT INTO users (email, username, password_hash, last_login_at, elo, peak_elo) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(email, username, hash, new Date().toISOString(), STARTING_ELO, STARTING_ELO);
+    .run(email, username, hash, new Date().toISOString(), startElo, startElo);
 
   // Ligne d'initialisation de l'historique Elo (classement provisoire)
   db.prepare(`INSERT INTO rating_history (user_id, elo_before, elo_after, delta, provisional, reason)
-              VALUES (?, ?, ?, 0, 1, 'init')`).run(info.lastInsertRowid, STARTING_ELO, STARTING_ELO);
+              VALUES (?, ?, ?, 0, 1, 'init')`).run(info.lastInsertRowid, startElo, startElo);
 
   req.session.regenerate(err => {
     if (err) return res.status(500).json({ error: 'Erreur de session.' });

@@ -7,7 +7,9 @@
 //  - Plancher 100, pas de plafond
 //  - Une partie abandonnée ou perdue au temps avant le 10e demi-coup n'est pas classée
 
-export const STARTING_ELO = 1000;
+export const STARTING_ELO = 1000;    // valeur par défaut si le joueur ne choisit pas
+export const MIN_START_ELO = 100;    // Elo de départ choisi à l'inscription
+export const MAX_START_ELO = 1800;
 export const PROVISIONAL_GAMES = 5;
 export const MIN_PLIES_FOR_RATING = 10;
 export const ELO_FLOOR = 100;

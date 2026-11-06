@@ -107,3 +107,14 @@ test('journal : ajout, validation, modification, suppression logique, cloisonnem
   assert.equal((await o('GET', '/api/journal')).json.entries.length, 0);
   assert.equal((await o('DELETE', `/api/journal/${r.json.entry.id}`)).status, 404);
 });
+
+test("inscription : Elo de départ choisi, borné, provisoire", async () => {
+  const c = client();
+  assert.equal((await c('POST', '/api/auth/register', { email: 'e1@t.l', username: 'elo1', password: 'motdepasse1', start_elo: 2500 })).status, 400);
+  assert.equal((await c('POST', '/api/auth/register', { email: 'e1@t.l', username: 'elo1', password: 'motdepasse1', start_elo: 'abc' })).status, 400);
+  const r = await c('POST', '/api/auth/register', { email: 'e1@t.l', username: 'elo1', password: 'motdepasse1', start_elo: 1400 });
+  assert.equal(r.status, 201); assert.equal(r.json.user.elo, 1400); assert.equal(r.json.user.peak_elo, 1400); assert.equal(r.json.user.provisional, true);
+  assert.equal(db.prepare("SELECT elo_after FROM rating_history WHERE user_id = ? AND reason = 'init'").get(r.json.user.id).elo_after, 1400);
+  const d = await client()('POST', '/api/auth/register', { email: 'e2@t.l', username: 'elo2', password: 'motdepasse1' });
+  assert.equal(d.json.user.elo, 1000);
+});
