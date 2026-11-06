@@ -203,3 +203,17 @@ test('programme du jour : compté dans le fuseau du joueur', async () => {
   assert.equal(T.dailyProgram(uid, 'Europe/Zurich').done, 1);
   if (ny.since > zurich.since) assert.equal(T.dailyProgram(uid, 'America/New_York').done, 0);
 });
+
+test("difficulté d'un exercice affinée par les résultats (première tentative seulement)", () => {
+  const strong = makeUser('fort', 1800), weak = makeUser('faible', 600);
+  const before = T.getPuzzle(2).rating, attemptsBefore = T.getPuzzle(2).attempts;
+  T.recordAttempt(weak, 2, { result: 'solved' });            // un faible réussit → l'exercice baisse
+  const afterWeak = T.getPuzzle(2).rating;
+  assert.ok(afterWeak < before, `${afterWeak} < ${before}`);
+  T.recordAttempt(weak, 2, { result: 'failed' });            // révision : pas de changement
+  assert.equal(T.getPuzzle(2).rating, afterWeak);
+  T.recordAttempt(strong, 2, { result: 'failed' });          // un fort rate → l'exercice monte
+  assert.ok(T.getPuzzle(2).rating > afterWeak);
+  assert.equal(T.getPuzzle(2).attempts, attemptsBefore + 2);
+  assert.equal(T.getPuzzle(2).rating_initial, 690);
+});

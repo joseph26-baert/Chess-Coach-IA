@@ -22,16 +22,19 @@ const SRS_INTERVALS = [1, 3, 7, 21]; // jours ; au-delà, l'exercice est maîtri
 export function loadLibrary(file = LIBRARY_FILE) {
   if (!fs.existsSync(file)) return 0;
   const list = JSON.parse(fs.readFileSync(file, 'utf8'));
-  const insert = db.prepare(`INSERT OR IGNORE INTO puzzles (source, fen, fen_key, solution, themes, rating, mate_in, gain_cp)
-                             VALUES ('library', ?, ?, ?, ?, ?, ?, ?)`);
-  const retag = db.prepare(`UPDATE puzzles SET themes = ?, rating = ? WHERE source = 'library' AND fen_key = ? AND user_id IS NULL AND (themes != ? OR rating != ?)`);
+  const insert = db.prepare(`INSERT OR IGNORE INTO puzzles (source, fen, fen_key, solution, themes, rating, rating_initial, mate_in, gain_cp)
+                             VALUES ('library', ?, ?, ?, ?, ?, ?, ?, ?)`);
+  // Mise à jour des thèmes et de l'estimation d'origine ; la difficulté apprise (rating) n'est
+  // réinitialisée que si l'exercice n'a encore jamais été tenté
+  const retag = db.prepare(`UPDATE puzzles SET themes = ?, rating_initial = ?, rating = CASE WHEN attempts = 0 THEN ? ELSE rating END
+                            WHERE source = 'library' AND fen_key = ? AND user_id IS NULL AND (themes != ? OR rating_initial IS NOT ?)`);
   let added = 0;
   db.transaction(() => {
     for (const p of list) {
       const key = puzzleKey(p.fen), themes = JSON.stringify(p.themes);
-      const r = insert.run(p.fen, key, JSON.stringify(p.solution), themes, p.rating, p.mate ?? null, p.gain ?? null);
+      const r = insert.run(p.fen, key, JSON.stringify(p.solution), themes, p.rating, p.rating, p.mate ?? null, p.gain ?? null);
       added += r.changes;
-      if (!r.changes) retag.run(themes, p.rating, key, themes, p.rating);
+      if (!r.changes) retag.run(themes, p.rating, p.rating, key, themes, p.rating);
     }
   })();
   if (added) console.log(`[training] bibliothèque : ${added} exercice(s) ajouté(s)`);
@@ -64,9 +67,9 @@ export async function createPuzzlesFromGame(gameId, { max = 3 } = {}) {
     if (db.prepare('SELECT id FROM puzzles WHERE fen_key = ? AND user_id = ?').get(key, game.user_id)) continue;
     const puzzle = await verifyPuzzle(fen);
     if (!puzzle) continue;
-    const info = db.prepare(`INSERT INTO puzzles (source, user_id, game_id, ply, fen, fen_key, solution, themes, rating, mate_in, gain_cp)
-                             VALUES ('game', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(game.user_id, gameId, r.ply, fen, key, JSON.stringify(puzzle.solution), JSON.stringify(puzzle.themes), puzzle.rating, puzzle.mate, puzzle.gain);
+    const info = db.prepare(`INSERT INTO puzzles (source, user_id, game_id, ply, fen, fen_key, solution, themes, rating, rating_initial, mate_in, gain_cp)
+                             VALUES ('game', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(game.user_id, gameId, r.ply, fen, key, JSON.stringify(puzzle.solution), JSON.stringify(puzzle.themes), puzzle.rating, puzzle.rating, puzzle.mate, puzzle.gain);
     created.push(info.lastInsertRowid);
   }
   return created;
@@ -91,6 +94,15 @@ export function updateThemeRating(userId, theme, puzzleRating, score) {
               ON CONFLICT(user_id, theme) DO UPDATE SET rating = excluded.rating, attempts = attempts + 1, solved = solved + excluded.solved, updated_at = excluded.updated_at`)
     .run(userId, theme, after, score >= 0.5 ? 1 : 0, new Date().toISOString());
   return { before: cur.rating, after };
+}
+
+// Elo de l'exercice : K décroissant avec le nombre de tentatives (32 → 8), bornes 400–2500
+export function updatePuzzleRating(p, playerRating, score) {
+  const k = Math.max(8, 32 / (1 + (p.attempts || 0) / 10));
+  const expected = 1 / (1 + Math.pow(10, (playerRating - p.rating) / 400)); // chance que l'exercice « gagne » (soit raté)
+  const after = Math.max(400, Math.min(2500, Math.round(p.rating + k * ((1 - score) - expected))));
+  db.prepare('UPDATE puzzles SET rating = ?, attempts = attempts + 1, solved = solved + ? WHERE id = ?').run(after, score >= 0.5 ? 1 : 0, p.id);
+  return after;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,9 +257,13 @@ export function recordAttempt(userId, puzzleId, { result, hints = 0, time_ms = n
   if (!['solved', 'solved-hint', 'failed'].includes(result)) throw new Error('Résultat invalide.');
   const theme = mainTheme(p.themes);
   const score = result === 'solved' ? 1 : result === 'solved-hint' ? 0.5 : 0;
+  const firstTry = !db.prepare('SELECT 1 FROM puzzle_attempts WHERE user_id = ? AND puzzle_id = ? LIMIT 1').get(userId, puzzleId);
   const { before, after } = updateThemeRating(userId, theme, p.rating, score);
   db.prepare(`INSERT INTO puzzle_attempts (user_id, puzzle_id, result, hints, time_ms, rating_before, rating_after, theme) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(userId, puzzleId, result, hints, time_ms, before, after, theme);
+  // La difficulté de l'exercice apprend des premières tentatives (comme un Elo d'exercice) :
+  // un exercice que des joueurs faibles réussissent baisse, un exercice que des joueurs forts ratent monte.
+  if (firstTry) updatePuzzleRating(p, before, score);
 
   // Répétition espacée (SM-2 simplifié)
   // Répétition espacée (SM-2 simplifié) : un exercice réussi du premier coup est maîtrisé et ne revient pas ;

@@ -263,7 +263,7 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // ---------------------------------------------------------------------------
 // Analyse complète d'une partie
 // ---------------------------------------------------------------------------
-async function evaluatePosition(fen) {
+export async function evaluatePosition(fen) {
   const { lines, bestMove } = await analyse(fen, { depth: ANALYSIS_DEPTH, multipv: 2, movetime: MOVETIME_MS });
   const chess = new Chess(fen);
   const turn = chess.turn();
@@ -370,13 +370,38 @@ function sanOf(chess, uci) {
   try { return c.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] })?.san || null; } catch { return null; }
 }
 
+// Précision d'une partie pour chaque camp, méthode Lichess : moyenne pondérée par la volatilité
+// de la position (les coups dans les positions tendues pèsent plus) combinée à la moyenne harmonique
+// (une seule gaffe pèse lourd). Donne des valeurs comparables à celles de Lichess / chess.com,
+// contrairement à une simple moyenne qui surestime la précision.
+export function gameAccuracy(rows, evals) {
+  const wins = evals.map(e => winProb(e.cp) * 100);
+  const windowSize = Math.max(2, Math.min(8, Math.floor(wins.length / 10)));
+  const std = (xs) => { const m = xs.reduce((a, b) => a + b, 0) / xs.length; return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / xs.length); };
+  const windows = [];
+  for (let i = 0; i < Math.min(windowSize, wins.length) - 2; i++) windows.push(wins.slice(0, windowSize));
+  for (let i = 0; i + windowSize <= wins.length; i++) windows.push(wins.slice(i, i + windowSize));
+  const weightAt = (i) => Math.max(0.5, Math.min(12, std(windows[Math.min(i, windows.length - 1)] || wins.slice(0, 2))));
+  const out = {};
+  for (const k of ['user', 'ai']) {
+    const list = rows.map((r, i) => ({ r, i })).filter(({ r }) => (k === 'user') === !!r.by_user);
+    if (!list.length) { out[k] = null; continue; }
+    const ws = list.map(({ i }) => weightAt(i));
+    const weighted = list.reduce((s, { r }, j) => s + r.accuracy * ws[j], 0) / ws.reduce((a, b) => a + b, 0);
+    const harmonic = list.length / list.reduce((s, { r }) => s + 1 / Math.max(1, r.accuracy), 0);
+    out[k] = Math.round((weighted + harmonic) / 2 * 10) / 10;
+  }
+  return out;
+}
+
 export function buildSummary(rows, evals, game) {
   const sides = { user: rows.filter(r => r.by_user), ai: rows.filter(r => !r.by_user) };
-  const acpl = {}, accuracy = {}, counts = {};
+  const acpl = {}, counts = {};
+  const accuracy = gameAccuracy(rows, evals);
   for (const [k, list] of Object.entries(sides)) {
     const n = list.length || 1;
     acpl[k] = Math.round(list.reduce((s, r) => s + Math.min(r.loss, 1000), 0) / n);
-    accuracy[k] = Math.round(list.reduce((s, r) => s + r.accuracy, 0) / n * 10) / 10;
+    if (accuracy[k] === null) accuracy[k] = 0;
     counts[k] = { best: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 };
     for (const r of list) counts[k][r.label]++;
   }
