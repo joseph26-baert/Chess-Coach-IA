@@ -65,24 +65,29 @@ data/               base SQLite et secret de session (non versionnés)
 
 ## Calibration de l'IA
 
-`node scripts/calibrate.mjs <eloA> <eloB> [parties]` fait jouer deux niveaux l'un contre l'autre.
-Objectif : à 200 Elo d'écart, le plus faible marque environ 24 %. Dernière calibration (2 nov. 2026) :
+Deux calibrations complémentaires (dernière : 6 nov. 2026).
 
-| Palier      | Parties | Score du plus faible |
-|-------------|---------|----------------------|
-| 600 / 800   | 32      | 22 %                 |
-| 800 / 1000  | 32      | 25 %                 |
-| 1200 / 1400 | 48      | 20 %                 |
-| 1600 / 1800 | 24      | 25 %                 |
-| 1400 / 1600 | 24      | 19 %                 |
-| 1800 / 2000 | 24      | 29 %                 |
+**Absolue** — `node scripts/calibrate-abs.mjs <elo> [parties] [maxPlies]` : l'IA joue contre elle-même, chaque
+coup est évalué comme dans l'analyse du site, et l'on compare la précision (méthode Lichess : moyenne
+harmonique + pondération par la volatilité) aux moyennes publiées par niveau chess.com
+(Kaufman, 2023, parties 10+0 ≈ Elo/100 + 64).
+
+| Niveau | Précision mesurée | Référence chess.com | Perte moy. | Gaffes / partie |
+|--------|-------------------|---------------------|-----------|-----------------|
+| 400    | 65 %              | 69 %                | 104 cp    | 3,4             |
+| 1000   | 73 %              | 76 %                | 92 cp     | 1,7             |
+| 1600   | 80 %              | 81 %                | 65 cp     | 0,3             |
+| 2200   | 87 %              | 86 %                | 35 cp     | 0,2             |
+
+**Relative** — `node scripts/calibrate.mjs <eloA> <eloB> [parties]` : à 200 Elo d'écart, le plus faible doit
+marquer ≈ 24 %. Mesuré : 800/1000 → 25 %, 1400/1600 → 31 %, 1800/2000 → 13 % (16 parties chacun, ± 11 %).
 
 Garde-fous vérifiés par `node scripts/endgame-check.mjs` : l'IA mate avec dame ou tour à tous les niveaux,
 reprend toujours une pièce qui vient de prendre, évite la répétition en position gagnante.
 
-Leviers (dans `server/engine/ai.js`, `paramsForElo`) : profondeur fractionnaire (3 → 6,2),
-température du softmax (240 → 60 cp), taux de gaffes plausibles (17 % → 2,5 %), mats en 1 et
-prises gratuites manqués. La profondeur est un levier très brutal : elle reste à 3 jusqu'à 1000 Elo.
+Leviers (dans `server/engine/ai.js`, `paramsForElo`) : profondeur fractionnaire (2 → 7,8), température du
+softmax (300 → 52 cp), taux de gaffes plausibles (23 % → 1,5 %), mats en 1 et prises gratuites manqués.
+Les échelles des plateformes diffèrent entre elles ; l'alignement vise chess.com (rapide).
 
 ## Bibliothèque d'exercices
 

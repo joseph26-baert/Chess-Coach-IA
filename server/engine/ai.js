@@ -50,21 +50,21 @@ export function paramsForElo(eloIn) {
     elo,
     // Profondeur fractionnaire : 3,4 = profondeur 3 (60 %) ou 4 (40 %), tirée à chaque coup,
     // pour une force qui varie en continu avec l'Elo (pas de marche d'escalier).
-    depth: curve([[400, 3], [600, 3], [800, 3], [1000, 3.2], [1200, 3.4], [1400, 3.7], [1600, 4.1], [1800, 4.7], [2000, 5.2], [2200, 6.2]], elo),
+    depth: curve([[400, 2], [600, 2.3], [800, 2.7], [1000, 3], [1200, 3.5], [1400, 4.1], [1600, 4.8], [1800, 5.8], [2000, 6.4], [2200, 7.8]], elo),
     multipv: 10,
     // Température du softmax (centipions) : plus haute = choix plus aléatoire
-    temperature: curve([[400, 240], [600, 215], [800, 195], [1000, 175], [1200, 158], [1400, 142], [1600, 125], [1800, 105], [2000, 92], [2200, 60]], elo),
+    temperature: curve([[400, 300], [600, 275], [800, 250], [1000, 225], [1200, 180], [1400, 148], [1600, 120], [1800, 95], [2000, 72], [2200, 52]], elo),
     // Perte maximale acceptée pour un coup « normal » (hors gaffe injectée)
-    maxLoss: curve([[400, 550], [600, 500], [800, 455], [1000, 415], [1200, 380], [1400, 345], [1600, 310], [1800, 270], [2000, 230], [2200, 160]], elo),
+    maxLoss: curve([[400, 800], [600, 700], [800, 600], [1000, 500], [1200, 420], [1400, 350], [1600, 290], [1800, 230], [2000, 170], [2200, 110]], elo),
     // Probabilité par coup d'une gaffe plausible (pièce en prise, échange perdant…)
-    blunderRate: curve([[400, 0.17], [600, 0.145], [800, 0.125], [1000, 0.107], [1200, 0.092], [1400, 0.078], [1600, 0.065], [1800, 0.052], [2000, 0.042], [2200, 0.025]], elo),
+    blunderRate: curve([[400, 0.23], [600, 0.205], [800, 0.185], [1000, 0.165], [1200, 0.115], [1400, 0.085], [1600, 0.06], [1800, 0.042], [2000, 0.028], [2200, 0.015]], elo),
     // Perte minimale / maximale d'une gaffe injectée (centipions)
     blunderMinLoss: 120,
-    blunderMaxLoss: curve([[400, 900], [800, 700], [1200, 450], [1600, 320], [2000, 220], [2200, 180]], elo),
+    blunderMaxLoss: curve([[400, 1200], [800, 900], [1200, 550], [1600, 350], [2000, 220], [2200, 160]], elo),
     // Probabilité de rater un mat en 1
-    mateMissRate: curve([[400, 0.35], [600, 0.3], [800, 0.26], [1000, 0.22], [1200, 0.18], [1400, 0.14], [1600, 0.1], [1800, 0.06], [2000, 0.035], [2200, 0.015]], elo),
+    mateMissRate: curve([[400, 0.5], [600, 0.42], [800, 0.34], [1000, 0.27], [1200, 0.2], [1400, 0.15], [1600, 0.1], [1800, 0.06], [2000, 0.03], [2200, 0.01]], elo),
     // Probabilité de ne pas voir une prise gratuite (meilleur coup = prise nettement gagnante)
-    freeCaptureMissRate: curve([[400, 0.3], [600, 0.26], [800, 0.22], [1000, 0.18], [1200, 0.14], [1400, 0.1], [1600, 0.07], [1800, 0.04], [2000, 0.025], [2200, 0.01]], elo),
+    freeCaptureMissRate: curve([[400, 0.45], [600, 0.38], [800, 0.3], [1000, 0.23], [1200, 0.17], [1400, 0.12], [1600, 0.08], [1800, 0.045], [2000, 0.025], [2200, 0.01]], elo),
   };
 }
 
